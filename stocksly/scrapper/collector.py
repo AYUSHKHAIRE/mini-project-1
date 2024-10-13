@@ -7,6 +7,8 @@ from stocksly.settings import BASE_DIR
 import time 
 from tqdm import tqdm
 import os
+from datetime import datetime,timedelta
+import json
 
 class stocksManager:
     def __init__(self) -> None:
@@ -77,13 +79,20 @@ class stocksManager:
         data = {'names':data}
         return data
 
-    def return_timestamp(unix_timestamps, date_format='%Y-%m-%d %H:%M:%S'):
-        formatted_dates = []
-        for ut in unix_timestamps:
-            date = datetime.fromtimestamp(ut)
-            formatted_date = date.strftime(date_format)
-            formatted_dates.append(formatted_date)
-        return formatted_dates
+    def return_timestamp(self,timestamps):
+        new_dates = []
+        for utnix in timestamps:
+            try:
+                if isinstance(utnix, str):
+                    datetime.strptime(utnix, '%Y-%m-%d %H:%M:%S')
+                    new_dates.append(utnix)
+                else:
+                    utnix = float(utnix)
+                    date = datetime.fromtimestamp(utnix).strftime('%Y-%m-%d %H:%M:%S')
+                    new_dates.append(date)
+            except (ValueError, TypeError):
+                new_dates.append(None)  
+        return new_dates
 
     def update_prices_for_daily(self,symbol_list):
         current_timestamp = int(time.time())
@@ -102,7 +111,8 @@ class stocksManager:
                 with open(json_path,'wb') as file:
                     file.write(r.content)
             else:
-                print("request failed",r.status_code)
+                # print("request failed",r.status_code)
+                continue
         filespaths = f'{BASE_DIR}/scrapper/data/daily_update/'
         jsnlistdaily = os.listdir(filespaths)
         
@@ -112,6 +122,80 @@ class stocksManager:
             jsonf = pd.read_json(f'{filespaths}/{jso}')
             jsondict = jsonf.to_dict()
             timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
-            if timestamp is None:
-                pass
+            if timestamp is not None:
+                new_timestamps = self.return_timestamp(timestamp)
+                jsondict['chart']['result'][0]['timestamp'] = new_timestamps
+            with open(f'{filespaths}/{jso}', 'w') as json_file:
+                json.dump(jsondict, json_file, indent=4)
+
         print("daily data update finished _________________________________")
+        
+    def render_daaily_data(self, stocksymbol, startdate, enddate):
+        path = f'{BASE_DIR}/scrapper/data/daily_update/'
+        data = pd.read_json(f'{path}/{stocksymbol}.json').to_dict()
+        timestmp = data.get('chart').get('result')[0].get('timestamp', [])
+        dates =   [ str(t.split(' ')[0]) for t in timestmp ]
+        new_data = data.get('chart').get('result')[0].get('indicators').get('quote')[0]
+
+        startindex = None
+        endindex = None
+        final_message = ''
+
+        if startdate is None or enddate is None:
+            message = "Dates were not provided.\n"
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            startdate = thirty_days_ago
+            enddate = dates[-1]
+            final_message = final_message+message
+
+        try:
+            if startdate in dates:
+                startindex = dates.index(startdate)
+            else:
+                message = "Start date not found. Locating later date in dates.   "
+                final_message = final_message+message
+                for i in range(3):
+                    next_date = (datetime.strptime(startdate, '%Y-%m-%d') + timedelta(days=i + 1)).strftime('%Y-%m-%d')
+                    print(next_date)
+                    if next_date in dates:
+                        message = f"Located new start date: {next_date}   "
+                        final_message = final_message+message
+                        startdate = next_date
+                        startindex = dates.index(startdate)
+                        break
+                if startindex is None:
+                    raise ValueError("Start date not found within next 3 days range.")
+
+            if enddate in dates:
+                endindex = dates.index(enddate)
+            else:
+                message = "End date not found. Locating later date in dates.   "
+                final_message = final_message+message
+                for i in range(3):
+                    next_date = (datetime.strptime(enddate, '%Y-%m-%d') + timedelta(days=i + 1)).strftime('%Y-%m-%d')
+                    if next_date in dates:
+                        message = f"Located new end date: {next_date}   "
+                        final_message = final_message+message
+                        enddate = next_date
+                        endindex = dates.index(enddate)
+                        break
+                if endindex is None:
+                    raise ValueError("End date not found within behind 3 days range.")
+
+            data = {
+                'dates': dates[startindex:endindex + 1],
+                'close': new_data['close'][startindex:endindex + 1],
+                'open': new_data['open'][startindex:endindex + 1],
+                'high': new_data['high'][startindex:endindex + 1],
+                'low': new_data['low'][startindex:endindex + 1],
+                'volume': new_data['volume'][startindex:endindex + 1],
+            }
+            response = {
+                'response':final_message,
+                'data':data
+            }
+            return response
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return None
