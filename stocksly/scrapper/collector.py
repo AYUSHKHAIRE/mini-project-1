@@ -2,7 +2,11 @@ import requests as rq
 import pandas as pd
 from bs4 import BeautifulSoup
 from .models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
-import json
+from datetime import datetime
+from stocksly.settings import BASE_DIR
+import time 
+from tqdm import tqdm
+import os
 
 class stocksManager:
     def __init__(self) -> None:
@@ -73,5 +77,41 @@ class stocksManager:
         data = {'names':data}
         return data
 
-    def render_stock_data(self,stockname,start_date,end_date,format):
-        pass
+    def return_timestamp(unix_timestamps, date_format='%Y-%m-%d %H:%M:%S'):
+        formatted_dates = []
+        for ut in unix_timestamps:
+            date = datetime.fromtimestamp(ut)
+            formatted_date = date.strftime(date_format)
+            formatted_dates.append(formatted_date)
+        return formatted_dates
+
+    def update_prices_for_daily(self,symbol_list):
+        current_timestamp = int(time.time())
+        date_str = "2015-01-01"
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        period1 = int(time.mktime(date_obj.timetuple()))
+        period2 = current_timestamp  
+        print(f"checking updates for period1={period1}&period2={period2} for stocks daily _________________")
+        for stock in tqdm(symbol_list):
+            stock_ = stock[1].replace(' ','')
+            json_path = f'{BASE_DIR}/scrapper/data/daily_update/{stock_}.json'
+            os.makedirs(os.path.dirname(json_path), exist_ok=True)
+            url = f'https://query1.finance.yahoo.com/v8/finance/chart/{stock_}?events=capitalGain%7Cdiv%7Csplit&formatted=true&includeAdjustedClose=true&interval=1d&period1={period1}&period2={period2}&symbol={stock_}&userYfid=true&lang=en-US&region=US'
+            r = rq.get(url, headers=self.headers)
+            if r.status_code == 200:
+                with open(json_path,'wb') as file:
+                    file.write(r.content)
+            else:
+                print("request failed",r.status_code)
+        filespaths = f'{BASE_DIR}/scrapper/data/daily_update/'
+        jsnlistdaily = os.listdir(filespaths)
+        
+        print('working on collected daily data _________________________________-')
+        
+        for jso in tqdm(jsnlistdaily):
+            jsonf = pd.read_json(f'{filespaths}/{jso}')
+            jsondict = jsonf.to_dict()
+            timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
+            if timestamp is None:
+                pass
+        print("daily data update finished _________________________________")

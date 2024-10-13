@@ -2,9 +2,11 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from .collector import stocksManager
 from .models import setup_stocks_model
-import json
+from datetime import datetime
 
 STM = stocksManager()
+
+    
 
 def update_data_for_today():
     if STM.today_update_flag == 0:
@@ -20,6 +22,8 @@ def update_data_for_today():
                 if key not in catagories:
                     catagories.append(key)
         setup_stocks_model(stocks_list_for_setup)
+        
+        STM.update_prices_for_daily(stocks_list_for_setup)
         STM.today_update_flag = 1
         print("finishing update for today ___________________________________-")
 
