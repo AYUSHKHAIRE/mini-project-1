@@ -3,14 +3,13 @@ from django.http import JsonResponse
 from .collector import stocksManager
 from .models import setup_stocks_model
 from datetime import datetime,timedelta
-
+from scrapper.logger_config import logger
 STM = stocksManager()
-
-    
+   
 
 def update_data_for_today():
     if STM.today_update_flag == 0:
-        print("starting update for today ___________________________________-")
+        logger.info("starting update for today ___________________________________-")
         symbols = STM.collect_stock_symbols()
         stocks_list_for_setup = []
         new_list = symbols['names']
@@ -25,7 +24,7 @@ def update_data_for_today():
         
         STM.update_prices_for_daily(stocks_list_for_setup[:5])
         STM.today_update_flag = 1
-        print("finishing update for today ___________________________________-")
+        logger.info("finishing update for today ___________________________________-")
 
 def get_available_stocks(request):
     available_stocks= STM.check_stock_availability()
