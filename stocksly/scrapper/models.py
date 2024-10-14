@@ -1,4 +1,5 @@
 from django.db import models
+from scrapper.logger_config import logger
 
 class StocksCategory(models.Model):  
     name = models.TextField(max_length=100)
@@ -40,7 +41,7 @@ class PerMinuteTrade(models.Model):
 
 
 def setup_stocks_model(stocks_for_setup):
-    print("Setting up STOCKS MODELS ___________________________________-")
+    logger.info("Setting up STOCKS MODELS ___________________________________-")
     already_available_stocks = StockInformation.objects.all()
     already_available_stocks_names = [sy.symbol for sy in already_available_stocks] 
 
