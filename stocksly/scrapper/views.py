@@ -6,7 +6,16 @@ from datetime import datetime,timedelta
 from scrapper.logger_config import logger
 STM = stocksManager()
    
+'''
+input : nothing
 
+algorithm :
+this funcion runs a setup update for a time .
+it takes stock symbols for today and set up their models .
+it ensures the process of setup should held only once a day .
+
+output : nothing
+'''
 def update_data_for_today():
     if STM.today_update_flag == 0:
         logger.info("starting update for today ___________________________________-")
@@ -17,7 +26,9 @@ def update_data_for_today():
         for st in new_list:
             for key,value in st.items():
                 for v in value:
-                    stocks_list_for_setup.append([key,v])
+                    stocks_list_for_setup.append(
+                        [key,v]
+                    )
                 if key not in catagories:
                     catagories.append(key)
         setup_stocks_model(stocks_list_for_setup)
@@ -26,14 +37,47 @@ def update_data_for_today():
         STM.today_update_flag = 1
         logger.info("finishing update for today ___________________________________-")
 
+'''
+input : request
+
+algorithm:
+it get the available stocks data and render it .
+it checks stock availablbity . if it is not updated , it updates it . 
+
+output:
+a json response containing stock data .
+'''
+
 def get_available_stocks(request):
     available_stocks= STM.check_stock_availability()
     if STM.today_update_flag == 0:
         update_data_for_today()
-    return JsonResponse(available_stocks,safe=False)
+    return JsonResponse(
+        available_stocks,
+        safe=False
+    )
 
-def get_stocks_daily_data(request, stocksymbol):
+'''
+input:
+request : fired by user 
+stocksymbol : symbol for the stock .
+
+algorithm:
+it takes startdate , enddate and srock symbol
+collect data and render its json .
+'''
+def get_stocks_daily_data(
+        request, 
+        stocksymbol
+    ):
     startdate = request.GET.get('start', None)  
     enddate = request.GET.get('end', None)  
-    data = STM.render_daaily_data(stocksymbol, startdate, enddate)
-    return JsonResponse(data, safe=False)
+    data = STM.render_daaily_data(
+        stocksymbol, 
+        startdate, 
+        enddate
+    )
+    return JsonResponse(
+        data, 
+        safe=False
+    )
