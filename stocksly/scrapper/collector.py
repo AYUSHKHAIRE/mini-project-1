@@ -1,7 +1,7 @@
 import requests as rq
 import pandas as pd
 from bs4 import BeautifulSoup
-from .models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
+from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 from datetime import datetime
 from stocksly.settings import BASE_DIR
 import time 
@@ -9,6 +9,7 @@ from tqdm import tqdm
 import os
 from datetime import datetime,timedelta
 import json
+from scrapper.logger_config import logger
 
 class stocksManager:
     def __init__(self) -> None:
@@ -65,7 +66,7 @@ class stocksManager:
 
         data = []
 
-        print('collecting data for symbols _______________________________--')
+        logger.info('collecting data for symbols _______________________________--')
         for u in urls_for_stocks:
             catg = u.split('/')[-3]
             symbol_list = []
@@ -75,7 +76,7 @@ class stocksManager:
             for s in symbs:
                 symbol_list.append(s.text)
             data.append({catg:symbol_list})
-        print("finished collecting data for symbols ______________________________-")
+        logger.info("finished collecting data for symbols ______________________________-")
         data = {'names':data}
         return data
 
@@ -100,7 +101,7 @@ class stocksManager:
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
         period1 = int(time.mktime(date_obj.timetuple()))
         period2 = current_timestamp  
-        print(f"checking updates for period1={period1}&period2={period2} for stocks daily _________________")
+        logger.info(f"checking updates for period1={period1} & period2={period2} for stocks daily _________________")
         for stock in tqdm(symbol_list):
             stock_ = stock[1].replace(' ','')
             json_path = f'{BASE_DIR}/scrapper/data/daily_update/{stock_}.json'
@@ -111,12 +112,12 @@ class stocksManager:
                 with open(json_path,'wb') as file:
                     file.write(r.content)
             else:
-                # print("request failed",r.status_code)
+                logger.warning("request failed",r.status_code)
                 continue
         filespaths = f'{BASE_DIR}/scrapper/data/daily_update/'
         jsnlistdaily = os.listdir(filespaths)
         
-        print('working on collected daily data _________________________________-')
+        logger.info('working on collected daily data _________________________________-')
         
         for jso in tqdm(jsnlistdaily):
             jsonf = pd.read_json(f'{filespaths}/{jso}')
@@ -128,7 +129,7 @@ class stocksManager:
             with open(f'{filespaths}/{jso}', 'w') as json_file:
                 json.dump(jsondict, json_file, indent=4)
 
-        print("daily data update finished _________________________________")
+        logger.info("daily data update finished _________________________________")
         
     def render_daaily_data(self, stocksymbol, startdate, enddate):
         path = f'{BASE_DIR}/scrapper/data/daily_update/'
@@ -153,34 +154,38 @@ class stocksManager:
                 startindex = dates.index(startdate)
             else:
                 message = "Start date not found. Locating later date in dates.   "
+                logger.warning(message)
                 final_message = final_message+message
                 for i in range(3):
                     next_date = (datetime.strptime(startdate, '%Y-%m-%d') + timedelta(days=i + 1)).strftime('%Y-%m-%d')
                     print(next_date)
                     if next_date in dates:
                         message = f"Located new start date: {next_date}   "
+                        logger.info(message)
                         final_message = final_message+message
                         startdate = next_date
                         startindex = dates.index(startdate)
                         break
                 if startindex is None:
-                    raise ValueError("Start date not found within next 3 days range.")
+                    logger.debug("Start date not found within next 3 days range.")
 
             if enddate in dates:
                 endindex = dates.index(enddate)
             else:
                 message = "End date not found. Locating later date in dates.   "
+                logger.warning(message)
                 final_message = final_message+message
                 for i in range(3):
                     next_date = (datetime.strptime(enddate, '%Y-%m-%d') + timedelta(days=i + 1)).strftime('%Y-%m-%d')
                     if next_date in dates:
                         message = f"Located new end date: {next_date}   "
+                        logger.info(message)
                         final_message = final_message+message
                         enddate = next_date
                         endindex = dates.index(enddate)
                         break
                 if endindex is None:
-                    raise ValueError("End date not found within behind 3 days range.")
+                    logger.debug("End date not found within behind 3 days range.")
 
             data = {
                 'dates': dates[startindex:endindex + 1],
@@ -197,5 +202,5 @@ class stocksManager:
             return response
 
         except ValueError as e:
-            print(f"Error: {e}")
+            logger.debug(f"Error: {e}")
             return None
