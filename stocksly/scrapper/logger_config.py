@@ -1,6 +1,10 @@
 import logging 
 import colorlog
 
+'''
+setting up logger
+'''
+
 handler = colorlog.StreamHandler()
 
 formatter = colorlog.ColoredFormatter(
