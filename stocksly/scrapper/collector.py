@@ -63,7 +63,6 @@ class stocksManager:
     
     output : data collected - stocknames .
     '''
-    
     def collect_stock_symbols(self):
         targets = [
             'most-active',
@@ -331,3 +330,39 @@ class stocksManager:
         except ValueError as e:
             logger.debug(f"Error: {e}")
             return None
+
+    def update_prices_for_per_minute(
+        self,
+        symbol_list,
+        start,
+        end
+    ):
+        for stock in symbol_list:
+            link = f'https://query2.finance.yahoo.com/v8/finance/chart/{stock}?period1={start}&period2={end}&interval=1m&includePrePost=true&events=div%7Csplit%7Cearn&&lang=en-US&region=US'
+            r = rq.get(
+                link,
+                headers = self.headers
+            )
+            path = f'{BASE_DIR}/stocksly/scrapper/data/per_minute/{stock}/_{start}_{end}.json'
+            if r.status_code == 200:
+                with open(path,'wb') as jsn:
+                    jsn.write(r.content)
+            result = pd.read_json(path)
+            data = result.iloc[:1]['chart']
+            timestamps = data[0][0]['timestamp']
+            open_val = data[0][0]['indicators']['quote'][0]['open']
+            low_val = data[0][0]['indicators']['quote'][0]['low']
+            close_val = data[0][0]['indicators']['quote'][0]['close']
+            high_val = data[0][0]['indicators']['quote'][0]['high']
+            volume = data[0][0]['indicators']['quote'][0]['volume']
+            new_timestamps = self.return_timestamp(timestamps)
+            final = {
+                'timestamp':new_timestamps,
+                'open':open_val,
+                'close':close_val,
+                'high':high_val,
+                'low':low_val,
+                'volume':volume,        
+            }
+            with open(path, 'w') as json_file:
+                json.dump(final, json_file, indent=4)
