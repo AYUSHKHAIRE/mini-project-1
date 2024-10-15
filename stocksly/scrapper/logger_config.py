@@ -1,10 +1,7 @@
-import logging 
+import logging
 import colorlog
 
-'''
-setting up logger
-'''
-
+# Setting up logger
 handler = colorlog.StreamHandler()
 
 formatter = colorlog.ColoredFormatter(
@@ -20,6 +17,9 @@ formatter = colorlog.ColoredFormatter(
 
 handler.setFormatter(formatter)
 
+# Create a logger instance
 logger = colorlog.getLogger()
 logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)  
+logger.setLevel(logging.DEBUG) 
+
+logging.getLogger("requests").setLevel(logging.WARNING)

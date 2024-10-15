@@ -63,7 +63,6 @@ class stocksManager:
     
     output : data collected - stocknames .
     '''
-    
     def collect_stock_symbols(self):
         targets = [
             'most-active',
@@ -73,9 +72,12 @@ class stocksManager:
     
         limitlist = []
 
-        for page in targets:
+        for page in tqdm(targets):
             url = f'https://finance.yahoo.com/{page}/?offset=0&count=100'
-            r = rq.get(url,headers = self.headers)
+            try:
+                r = rq.get(url,headers = self.headers)
+            except Exception as e:
+                logger.warning("cannot hit url : ",url ,e,r.status_code)
             soup = BeautifulSoup(r.text,'html.parser')
             limits = soup.find(
                 'div',{'class':'total yf-1tdhqb1'}
@@ -113,7 +115,10 @@ class stocksManager:
         for u in urls_for_stocks:
             catg = u.split('/')[-3]
             symbol_list = []
-            r = rq.get(u,headers = self.headers)
+            try:
+                r = rq.get(u,headers = self.headers)
+            except Exception as e:
+                logger.warning("cannot hit url : ",u , e,r.status_code)
             soup = BeautifulSoup(r.text,'html.parser')
             symbs= soup.find_all('span',{'class':'symbol'})
             for s in symbs:
@@ -178,6 +183,7 @@ class stocksManager:
             date_obj.timetuple())
         )
         period2 = current_timestamp  
+        
         logger.info(f"checking updates for period1={period1} & period2={period2} for stocks daily _________________")
         for stock in tqdm(symbol_list):
             stock_ = stock[1].replace(' ','')
@@ -189,15 +195,18 @@ class stocksManager:
                 with open(json_path,'wb') as file:
                     file.write(r.content)
             else:
-                logger.warning("request failed",r.status_code)
+                logger.warning("request failed",url,r.status_code)
                 continue
         filespaths = f'{BASE_DIR}/scrapper/data/daily_update/'
         jsnlistdaily = os.listdir(filespaths)
         
         logger.info('working on collected daily data _________________________________-')
-        
         for jso in tqdm(jsnlistdaily):
-            jsonf = pd.read_json(f'{filespaths}/{jso}')
+            try:
+                jsonf = pd.read_json(f'{filespaths}/{jso}')
+            except:
+                logger.warning("cannot read json " ,jso)
+                continue
             jsondict = jsonf.to_dict()
             timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
             if timestamp is not None:
@@ -205,7 +214,6 @@ class stocksManager:
                 jsondict['chart']['result'][0]['timestamp'] = new_timestamps
             with open(f'{filespaths}/{jso}', 'w') as json_file:
                 json.dump(jsondict, json_file, indent=4)
-
         logger.info("daily data update finished _________________________________")
         
     '''
@@ -331,3 +339,48 @@ class stocksManager:
         except ValueError as e:
             logger.debug(f"Error: {e}")
             return None
+
+    def update_prices_for_per_minute(
+        self,
+        symbol_list,
+    ):
+        period1 = int(datetime.now().timestamp())
+        period2 = int((datetime.now() - timedelta(days=7)).timestamp())
+
+        logger.info(f"checking updates for period1={period1} & period2={period2} for stocks per minute _________________")
+        for stock in tqdm(symbol_list):
+            stock = stock[1].replace(' ','')
+            link = f'https://query2.finance.yahoo.com/v8/finance/chart/{stock}?period1={period2}&period2={period1}&interval=1m&includePrePost=true&events=div%7Csplit%7Cearn&&lang=en-US&region=US'
+            r = rq.get(
+                link,
+                headers = self.headers
+            )
+            path = f'{BASE_DIR}/scrapper/data/per_minute/{stock}/_{period1}_{period2}.json'
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            if r.status_code == 200:
+                with open(path,'wb') as jsn:
+                    jsn.write(r.content)
+            else:
+                logger.warning("request failed",link,r.status_code)
+                continue
+            
+        filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
+        jsnlistdaily = os.listdir(filespaths)
+        
+        logger.info('working on collected per minute data _________________________________-')
+        for jso in tqdm(jsnlistdaily):
+            try:
+                jsonf = pd.read_json(f'{filespaths}/{jso}')
+            except:
+                logger.warning("cannot read json :",jso)
+                continue
+            jsondict = jsonf.to_dict()
+            timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
+            if timestamp is not None:
+                new_timestamps = self.return_timestamp(timestamp)
+                jsondict['chart']['result'][0]['timestamp'] = new_timestamps
+            with open(f'{filespaths}/{jso}', 'w') as json_file:
+                json.dump(jsondict, json_file, indent=4)
+
+        logger.info("per minute update finished _________________________________")
+            
