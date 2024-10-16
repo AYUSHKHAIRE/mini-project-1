@@ -10,6 +10,7 @@ import os
 from datetime import datetime,timedelta
 import json
 from scrapper.logger_config import logger
+import shutil
 
 '''
 A class handles all stocks related operations .
@@ -118,7 +119,7 @@ class stocksManager:
             try:
                 r = rq.get(u,headers = self.headers)
             except Exception as e:
-                logger.warning("cannot hit url : ",u , e,r.status_code)
+                logger.warning("cannot hit url : ",u ,r.status_code)
             soup = BeautifulSoup(r.text,'html.parser')
             symbs= soup.find_all('span',{'class':'symbol'})
             for s in symbs:
@@ -344,6 +345,7 @@ class stocksManager:
         self,
         symbol_list,
     ):
+        os.makedirs(f'{BASE_DIR}/scrapper/data/per_minute',exist_ok=True)
         period1 = int(datetime.now().timestamp())
         period2 = int((datetime.now() - timedelta(days=7)).timestamp())
 
@@ -368,19 +370,116 @@ class stocksManager:
         jsnlistdaily = os.listdir(filespaths)
         
         logger.info('working on collected per minute data _________________________________-')
-        for jso in tqdm(jsnlistdaily):
+        for folder in tqdm(jsnlistdaily):
+            files = os.listdir(f'{filespaths}/{folder}')
+            file = files[-1]
             try:
-                jsonf = pd.read_json(f'{filespaths}/{jso}')
+                jsonf = pd.read_json(f'{filespaths}/{folder}/{file}')
             except:
-                logger.warning("cannot read json :",jso)
+                logger.warning("cannot read json :",f'{filespaths}/{folder}/{file}')
                 continue
             jsondict = jsonf.to_dict()
             timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
             if timestamp is not None:
                 new_timestamps = self.return_timestamp(timestamp)
                 jsondict['chart']['result'][0]['timestamp'] = new_timestamps
-            with open(f'{filespaths}/{jso}', 'w') as json_file:
+            with open(f'{filespaths}/{folder}/{file}', 'w') as json_file:
                 json.dump(jsondict, json_file, indent=4)
 
         logger.info("per minute update finished _________________________________")
             
+    def render_per_minute_data(
+        self, 
+        stocksymbol, 
+        startdate, 
+        enddate
+    ):
+        path = f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/'
+        jsons = os.listdir(path)
+        megajson = {}
+        for j in jsons:
+            data = pd.read_json(f'{path}/{j}').to_dict()
+            timestmp = data.get('chart').get('result')[0].get('timestamp', [])
+            dates =   [ str(t.split(' ')[0]) for t in timestmp ]
+            new_data = data.get('chart').get('result')[0].get('indicators').get('quote')[0]
+
+            startindex = None
+            endindex = None
+            final_message = ''
+
+            if startdate is None or enddate is None:
+                message = "Dates were not provided.\n"
+                thirty_days_ago = (
+                    datetime.now() - timedelta(
+                        days=30)
+                    ).strftime('%Y-%m-%d')
+                startdate = thirty_days_ago
+                enddate = dates[-1]
+                final_message = final_message+message
+
+            try:
+                if startdate in dates:
+                    startindex = dates.index(startdate)
+                else:
+                    message = "Start date not found. Locating later date in dates.   "
+                    logger.warning(message)
+                    final_message = final_message+message
+                    for i in range(3):
+                        next_date = (
+                            datetime.strptime(
+                                startdate, '%Y-%m-%d') + timedelta(
+                                    days=i + 1)
+                                ).strftime('%Y-%m-%d')
+                        if next_date in dates:
+                            message = f"Located new start date: {next_date}   "
+                            logger.info(message)
+                            final_message = final_message+message
+                            startdate = next_date
+                            startindex = dates.index(startdate)
+                            break
+                    if startindex is None:
+                        logger.debug("Start date not found within next 3 days range.")
+
+                if enddate in dates:
+                    endindex = dates.index(enddate)
+                else:
+                    message = "End date not found. Locating later date in dates.   "
+                    logger.warning(message)
+                    final_message = final_message+message
+                    for i in range(3):
+                        next_date = (
+                            datetime.strptime(
+                                enddate, '%Y-%m-%d') + timedelta(
+                                    days=i + 1)
+                                ).strftime('%Y-%m-%d')
+                        if next_date in dates:
+                            message = f"Located new end date: {next_date}   "
+                            logger.info(message)
+                            final_message = final_message+message
+                            enddate = next_date
+                            endindex = dates.index(enddate)
+                            break
+                    if endindex is None:
+                        logger.debug("End date not found within behind 3 days range.")
+
+            except ValueError as e:
+                logger.debug(f"Error: {e}")
+                
+            data = {
+                    'time': timestmp[startindex:endindex + 1],
+                    'close': new_data['close'][startindex:endindex + 1],
+                    'open': new_data['open'][startindex:endindex + 1],
+                    'high': new_data['high'][startindex:endindex + 1],
+                    'low': new_data['low'][startindex:endindex + 1],
+                    'volume': new_data['volume'][startindex:endindex + 1],
+                }
+                
+            startforjson = timestmp[0]
+            endforjson = timestmp[-1]
+            megajson[f'_{startforjson}_{endforjson}'] = data
+                
+        response = {
+                    'response':final_message,
+                    'data':megajson
+                }
+        return response
