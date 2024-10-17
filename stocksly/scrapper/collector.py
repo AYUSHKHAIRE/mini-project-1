@@ -139,7 +139,7 @@ class stocksManager:
     
     output : readable human timestamp .
     '''
-    def return_timestamp(
+    def return_human_timestamp(
         self,
         timestamps
         ):
@@ -161,6 +161,26 @@ class stocksManager:
                 ValueError, TypeError):
                 new_dates.append(None)  
         return new_dates
+
+    '''
+    input : human timestamp
+    
+    algorithm:
+    it gets human timestamp , and convert it to unix timestamp .
+    
+    output : unix timestamp .
+    '''
+    
+    def return_unix_timestamps(self,date_strings):
+        unix_timestamps = []
+        for date_str in date_strings:
+            try:
+                dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                unix_timestamp = int(dt.timestamp())  
+                unix_timestamps.append(unix_timestamp)
+            except (ValueError, TypeError):
+                unix_timestamps.append(None)
+        return unix_timestamps
 
     '''
     input : list of all symbols 
@@ -227,17 +247,18 @@ class stocksManager:
     it reads file in 
     /scrapper/data/daily_update/[stocksymbol].json
     it maintains amessage string .
-    it handles 3 cases :
-    case 1 : both start date and end date was in the given data :
-        it simply filter data and render the output . message is ok .
-    case 2: start date was not present or end date was not present :
-        it tries to find a date that is upto 3 days later , 
-        and present it in he given data ,
-        it collects upto the data , and render it .
-    case 3: both dates were not given by user
-        it takes todays date , and 30 days before date .
-        it filter out the data and render it .
-    on failing it returns error .
+    it handles cases :
+    
+    Testing:
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2100-01-01&end=2100-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/ passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2023-01-01&end=2100-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2024-01-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=1900-01-01&end=2024-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?end=2024-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2024-01-01&end=2023-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2022-01-01&end=2024-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=1922-01-01&end=2224-10-01 passed
         
     output:
     a response {
@@ -252,95 +273,170 @@ class stocksManager:
                         }
     }
      '''
-    def render_daaily_data(
-        self, 
-        stocksymbol, 
-        startdate, 
-        enddate
-    ):
+    def render_daily_data(self, stocksymbol, startdate, enddate):
+        global_start_timestamp = None
+        global_end_timestamp = None
+        if startdate is not None:
+            unix_starttime = f'{startdate} 00:00:00'
+            date_object = datetime.strptime(unix_starttime, '%Y-%m-%d %H:%M:%S')
+            global_start_timestamp = int(date_object.timestamp())
+
+        if enddate is not None :
+            unix_endtime = f'{enddate} 00:00:00'
+            date_object = datetime.strptime(unix_endtime, '%Y-%m-%d %H:%M:%S')
+            global_end_timestamp = int(date_object.timestamp())
+
         path = f'{BASE_DIR}/scrapper/data/daily_update/'
         data = pd.read_json(f'{path}/{stocksymbol}.json').to_dict()
+
         timestmp = data.get('chart').get('result')[0].get('timestamp', [])
         dates =   [ str(t.split(' ')[0]) for t in timestmp ]
+        unix_dates = self.return_unix_timestamps(timestmp)
         new_data = data.get('chart').get('result')[0].get('indicators').get('quote')[0]
 
-        startindex = None
-        endindex = None
+        now_timestamp = datetime.now().timestamp()
+        global_startindex = None
+        global_endindex = None
         final_message = ''
 
-        if startdate is None or enddate is None:
-            message = "Dates were not provided.\n"
-            thirty_days_ago = (
-                datetime.now() - timedelta(
-                    days=30)
-                ).strftime('%Y-%m-%d')
-            startdate = thirty_days_ago
-            enddate = dates[-1]
-            final_message = final_message+message
+        def get_closer_index_if_date_is_missing(unix_date):
+            if unix_date in unix_dates:
+                logger.warning(f'{unix_date} from case 1 ')
+                return unix_dates.index(unix_date), 'OK'
 
-        try:
-            if startdate in dates:
-                startindex = dates.index(startdate)
-            else:
-                message = "Start date not found. Locating later date in dates.   "
-                logger.warning(message)
-                final_message = final_message+message
-                for i in range(3):
-                    next_date = (
-                        datetime.strptime(
-                            startdate, '%Y-%m-%d') + timedelta(
-                                days=i + 1)
-                            ).strftime('%Y-%m-%d')
-                    if next_date in dates:
-                        message = f"Located new start date: {next_date}   "
-                        logger.info(message)
-                        final_message = final_message+message
-                        startdate = next_date
-                        startindex = dates.index(startdate)
-                        break
-                if startindex is None:
-                    logger.debug("Start date not found within next 3 days range.")
+            for i in range(len(unix_dates) - 1):
+                if unix_dates[i] <= unix_date <= unix_dates[i + 1]:
+                    message = f"Allocated new date. New date is {timestmp[i+1]} from case 2 ."
+                    logger.warning(message)
+                    return i + 1, message
 
-            if enddate in dates:
-                endindex = dates.index(enddate)
-            else:
-                message = "End date not found. Locating later date in dates.   "
-                logger.warning(message)
-                final_message = final_message+message
-                for i in range(3):
-                    next_date = (
-                        datetime.strptime(
-                            enddate, '%Y-%m-%d') + timedelta(
-                                days=i + 1)
-                            ).strftime('%Y-%m-%d')
-                    if next_date in dates:
-                        message = f"Located new end date: {next_date}   "
-                        logger.info(message)
-                        final_message = final_message+message
-                        enddate = next_date
-                        endindex = dates.index(enddate)
-                        break
-                if endindex is None:
-                    logger.debug("End date not found within behind 3 days range.")
-
-            data = {
-                'dates': dates[startindex:endindex + 1],
-                'close': new_data['close'][startindex:endindex + 1],
-                'open': new_data['open'][startindex:endindex + 1],
-                'high': new_data['high'][startindex:endindex + 1],
-                'low': new_data['low'][startindex:endindex + 1],
-                'volume': new_data['volume'][startindex:endindex + 1],
-            }
+        def data_render_on_hit(new_data,final_message,global_startindex,global_endindex):
+            final = {
+                    'time': timestmp[global_startindex:global_endindex + 1],
+                    'close': new_data['close'][global_startindex:global_endindex + 1],
+                    'open': new_data['open'][global_startindex:global_endindex + 1],
+                    'high': new_data['high'][global_startindex:global_endindex + 1],
+                    'low': new_data['low'][global_startindex:global_endindex + 1],
+                    'volume': new_data['volume'][global_startindex:global_endindex + 1],
+                }
             response = {
-                'response':final_message,
-                'data':data
-            }
+                    'response': final_message,
+                    'data':final
+                }
             return response
 
-        except ValueError as e:
-            logger.debug(f"Error: {e}")
-            return None
+        logger.warning(f'{global_start_timestamp} and {global_end_timestamp}')
 
+        ''' Case 2: Start or end date is None '''
+        if startdate is None and enddate is None:  
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).timestamp()
+            starttime = int(thirty_days_ago)
+            endtime = unix_dates[-1]
+            logger.warning(f'{starttime} and {endtime } from case 2')
+            startindex_,message1 = get_closer_index_if_date_is_missing(starttime)
+            endindex_,message2 = get_closer_index_if_date_is_missing(endtime)
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = "Dates were not provided. Defaulting to last 30 days."
+            final_message = message1 + message2 + message 
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+            
+        ''' Case 6: Start date is None but end time is OK '''
+        if startdate is None and global_end_timestamp <= now_timestamp:
+            startindex_ = 0
+            endindex_, message1 = get_closer_index_if_date_is_missing(global_end_timestamp)
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = f"Start date is None. Providing data from {dates[0]} to {enddate}."
+            final_message += message + message1
+            logger.warning("assigned values from case 6")
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+        
+        ''' Case 4: Start time is OK but end date is none '''
+        if global_start_timestamp < now_timestamp and enddate is None:
+            startindex_, message1 = get_closer_index_if_date_is_missing(global_start_timestamp)
+            endindex_ = len(timestmp) - 1
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = "Start date is OK, but end date is None. Allocating the latest date."
+            final_message += message1 + message
+            logger.warning("assigned values from case 4")
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+        
+        ''' Case 9: Both start and end times are out of range  '''
+        if global_start_timestamp < unix_dates[0] and global_end_timestamp > unix_dates[-1]:
+            logger.warning("assigned values from case 9")
+            startindex_, message1 = get_closer_index_if_date_is_missing(unix_dates[0])
+            endindex_, message2 = get_closer_index_if_date_is_missing(unix_dates[-1])
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = f' both {startdate} and {enddate} are out of available data range . providing data from {timestmp[0]} to {timestmp[-1]}'
+            final_message += message + message1 + message2
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+        ''' Case 1: Both dates are in the future '''
+        if global_start_timestamp > now_timestamp and global_end_timestamp > now_timestamp:
+            message = f'Give correct dates. {startdate} and {enddate} are in the future. Please request data between {dates[0]} and {dates[-1]}.'
+            logger.warning("assigned values from case 1")
+            return {'message': message, 'data': None}
+        
+        ''' Case 3: Start time is OK but end time is in the future '''
+        if global_start_timestamp < now_timestamp and now_timestamp < global_end_timestamp:
+            startindex_, message1 = get_closer_index_if_date_is_missing(global_start_timestamp)
+            endindex_ = len(timestmp) - 1
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = f"Start date is OK. {enddate} is in the future. Allocating the latest date."
+            final_message += message1 + message
+            logger.warning(f'assigned values from case 3 ')
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+            
+        ''' Case 5: Start date is earlier than available data but end time is OK '''
+        if global_start_timestamp < unix_dates[0] and global_end_timestamp <= now_timestamp:
+            startindex_ = 0
+            endindex_, message1 = get_closer_index_if_date_is_missing(global_end_timestamp)
+            message = f"Start date is earlier than available data. Providing data from {dates[0]} to {enddate}."
+            global_startindex = startindex_
+            global_endindex = endindex_
+            final_message += message + message1
+            logger.warning("assigned values from case 5")
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+        
+        
+        ''' Case 7: Start date is after end date '''
+        if global_start_timestamp > global_end_timestamp:
+            startindex_, message1 = get_closer_index_if_date_is_missing(global_start_timestamp)
+            endindex_, message2 = get_closer_index_if_date_is_missing(global_end_timestamp)
+            global_startindex = startindex_
+            global_endindex = endindex_
+            message = f"{startdate} is later than {enddate}. Did you mean to swap them? Allocating the corrected data."
+            final_message += message + message1 + message2
+            logger.warning("assigned values from case 7")
+            response = data_render_on_hit(new_data,final_message,global_endindex=global_startindex,global_startindex=global_endindex)
+            return response
+        
+        ''' Case 8: Both start and end times are valid '''
+        if global_start_timestamp >= unix_dates[0] and global_end_timestamp <= unix_dates[-1]:
+            startindex_, message1 = get_closer_index_if_date_is_missing(global_start_timestamp)
+            endindex_, message2 = get_closer_index_if_date_is_missing(global_end_timestamp)
+            global_startindex = startindex_
+            global_endindex = endindex_
+            final_message += message1 + message2
+            logger.warning("assigned values from case 8")
+            response = data_render_on_hit(new_data,final_message,global_startindex,global_endindex)
+            return response
+        
+        else:
+            message = f"Unknown issue with the dates {startdate} and {enddate}. Please raise an issue."
+            pass
+
+        logger.warning(f'printing {global_startindex} {global_endindex} ',)
+        
     def update_prices_for_per_minute(
         self,
         symbol_list,
