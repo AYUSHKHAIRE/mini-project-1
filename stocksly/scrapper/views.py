@@ -74,7 +74,7 @@ def get_stocks_daily_data(
     ):
     startdate = request.GET.get('start', None)  
     enddate = request.GET.get('end', None)  
-    data = STM.render_daaily_data(
+    data = STM.render_daily_data(
         stocksymbol, 
         startdate, 
         enddate
