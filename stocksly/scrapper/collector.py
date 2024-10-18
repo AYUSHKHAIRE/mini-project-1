@@ -132,7 +132,7 @@ class stocksManager:
         return data
 
     '''
-    input : unix timestamp
+    input : list or string of unix timestamp
     
     algorithm:
     it gets unix timestamp , and convert it to redable human timestamp .
@@ -143,44 +143,56 @@ class stocksManager:
         self,
         timestamps
         ):
-        new_dates = []
-        for utnix in timestamps:
-            try:
-                if isinstance(
-                    utnix, 
-                    str
-                ):
-                    datetime.strptime(utnix, '%Y-%m-%d %H:%M:%S')
-                    new_dates.append(utnix)
-                else:
-                    utnix = float(utnix)
-                    date = datetime.fromtimestamp(
-                        utnix).strftime('%Y-%m-%d %H:%M:%S')
-                    new_dates.append(date)
-            except (
-                ValueError, TypeError):
-                new_dates.append(None)  
-        return new_dates
+        if type(timestamps) == 'list':
+            new_dates = []
+            for utnix in timestamps:
+                try:
+                    if isinstance(
+                        utnix, 
+                        str
+                    ):
+                        datetime.strptime(utnix, '%Y-%m-%d %H:%M:%S')
+                        new_dates.append(utnix)
+                    else:
+                        utnix = float(utnix)
+                        date = datetime.fromtimestamp(
+                            utnix).strftime('%Y-%m-%d %H:%M:%S')
+                        new_dates.append(date)
+                except (
+                    ValueError, TypeError):
+                    new_dates.append(None)  
+            return new_dates
+        if type(timestamps) == 'string':
+            utnix = float(timestamps)
+            date = datetime.fromtimestamp(
+                utnix).strftime('%Y-%m-%d %H:%M:%S')
+            return date
 
     '''
     input : human timestamp
+    list or string of unix timestamp
     
     algorithm:
     it gets human timestamp , and convert it to unix timestamp .
     
     output : unix timestamp .
-    '''
-    
+    ''' 
     def return_unix_timestamps(self,date_strings):
-        unix_timestamps = []
-        for date_str in date_strings:
-            try:
-                dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-                unix_timestamp = int(dt.timestamp())  
-                unix_timestamps.append(unix_timestamp)
-            except (ValueError, TypeError):
-                unix_timestamps.append(None)
-        return unix_timestamps
+        if type(date_strings) == "list":
+            unix_timestamps = []
+            for date_str in date_strings:
+                try:
+                    dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    unix_timestamp = int(dt.timestamp())  
+                    unix_timestamps.append(unix_timestamp)
+                except (ValueError, TypeError):
+                    unix_timestamps.append(None)
+            return unix_timestamps
+        if type(date_strings) == "string":
+            dt = datetime.strptime(
+                date_str, '%Y-%m-%d %H:%M:%S')
+            unix_timestamp = int(dt.timestamp())  
+            return unix_timestamp
 
     '''
     input : list of all symbols 
@@ -250,14 +262,23 @@ class stocksManager:
     it handles cases :
     
     Testing:
+    case 1
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2100-01-01&end=2100-10-01 passed
+    case 2
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/ passed
+    case 3
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2023-01-01&end=2100-10-01 passed
+    case 4
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2024-01-01 passed
+    case 5
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=1900-01-01&end=2024-10-01 passed
+    case 6
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?end=2024-10-01 passed
+    case 7
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2024-01-01&end=2023-10-01 passed
-    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2022-01-01&end=2024-10-01 passed
+    case 8
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2unix timestamp022-01-01&end=2024-10-01 passed
+    case 9
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=1922-01-01&end=2224-10-01 passed
         
     output:
@@ -487,6 +508,19 @@ class stocksManager:
             message = f"Unknown issue with the dates {startdate} and {enddate}. Please raise an issue."
             pass
    
+    '''
+    input:
+    symbols list : list of strings
+    
+    algorithm:
+    read a file , fire the request .
+    take the data in json . read and convert unix timestamps
+    to human redable format
+    save the json .
+    
+    output:
+    None
+    '''
     def update_prices_for_per_minute(
         self,
         symbol_list,
