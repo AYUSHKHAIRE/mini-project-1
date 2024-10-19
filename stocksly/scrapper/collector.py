@@ -131,54 +131,41 @@ class stocksManager:
         data = {'names':data}
         return data
 
-    '''
-    input : list or string of unix timestamp
-    
-    algorithm:
-    it gets unix timestamp , and convert it to redable human timestamp .
-    
-    output : readable human timestamp .
-    '''
-    def return_human_timestamp(
-        self,
-        timestamps
-        ):
-        if type(timestamps) == 'list':
-            new_dates = []
-            for utnix in timestamps:
+    """
+    Convert a list or a single Unix timestamp to a human-readable timestamp.
+    :param timestamps: list or string of Unix timestamp(s)
+    :return: list of human-readable timestamps or single human-readable timestamp
+    """
+    def return_human_timestamp(self, timestamps):
+            if isinstance(timestamps, list):
+                new_dates = []
+                for unix_time in timestamps:
+                    try:
+                        if isinstance(unix_time, str):
+                            datetime.strptime(unix_time, '%Y-%m-%d %H:%M:%S') 
+                            new_dates.append(unix_time)
+                        else:
+                            unix_time = float(unix_time)
+                            date = datetime.fromtimestamp(unix_time).strftime('%Y-%m-%d %H:%M:%S')
+                            new_dates.append(date)
+                    except (ValueError, TypeError):
+                        new_dates.append(None)  
+                return new_dates
+            elif isinstance(timestamps, str):
                 try:
-                    if isinstance(
-                        utnix, 
-                        str
-                    ):
-                        datetime.strptime(utnix, '%Y-%m-%d %H:%M:%S')
-                        new_dates.append(utnix)
-                    else:
-                        utnix = float(utnix)
-                        date = datetime.fromtimestamp(
-                            utnix).strftime('%Y-%m-%d %H:%M:%S')
-                        new_dates.append(date)
-                except (
-                    ValueError, TypeError):
-                    new_dates.append(None)  
-            return new_dates
-        if type(timestamps) == 'string':
-            utnix = float(timestamps)
-            date = datetime.fromtimestamp(
-                utnix).strftime('%Y-%m-%d %H:%M:%S')
-            return date
+                    unix_time = float(timestamps)
+                    date = datetime.fromtimestamp(unix_time).strftime('%Y-%m-%d %H:%M:%S')
+                    return date
+                except (ValueError, TypeError):
+                    return None
 
-    '''
-    input : human timestamp
-    list or string of unix timestamp
-    
-    algorithm:
-    it gets human timestamp , and convert it to unix timestamp .
-    
-    output : unix timestamp .
-    ''' 
-    def return_unix_timestamps(self,date_strings):
-        if type(date_strings) == "list":
+    """
+    Convert a list or a single human-readable timestamp to a Unix timestamp.
+    :param date_strings: list or string of human-readable timestamp(s)
+    :return: list of Unix timestamps or a single Unix timestamp
+    """
+    def return_unix_timestamps(self, date_strings):
+        if isinstance(date_strings, list):
             unix_timestamps = []
             for date_str in date_strings:
                 try:
@@ -188,12 +175,14 @@ class stocksManager:
                 except (ValueError, TypeError):
                     unix_timestamps.append(None)
             return unix_timestamps
-        if type(date_strings) == "string":
-            dt = datetime.strptime(
-                date_str, '%Y-%m-%d %H:%M:%S')
-            unix_timestamp = int(dt.timestamp())  
-            return unix_timestamp
-
+        elif isinstance(date_strings, str):
+            try:
+                dt = datetime.strptime(date_strings, '%Y-%m-%d %H:%M:%S')
+                unix_timestamp = int(dt.timestamp())  
+                return unix_timestamp
+            except (ValueError, TypeError):
+                return None
+            
     '''
     input : list of all symbols 
     
@@ -243,7 +232,7 @@ class stocksManager:
             jsondict = jsonf.to_dict()
             timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
             if timestamp is not None:
-                new_timestamps = self.return_timestamp(timestamp)
+                new_timestamps = self.return_human_timestamp(timestamp)
                 jsondict['chart']['result'][0]['timestamp'] = new_timestamps
             with open(f'{filespaths}/{jso}', 'w') as json_file:
                 json.dump(jsondict, json_file, indent=4)
@@ -526,9 +515,12 @@ class stocksManager:
         symbol_list,
     ):
         os.makedirs(f'{BASE_DIR}/scrapper/data/per_minute',exist_ok=True)
-        period1 = int(datetime.now().timestamp())
-        period2 = int((datetime.now() - timedelta(days=7)).timestamp())
-
+        todays_date = datetime.now().strftime('%Y-%m-%d 00:00:00')
+        date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
+        period1 = int(date_time_obj.timestamp())
+        seven_days_back = date_time_obj - timedelta(days=7)
+        period2 = int(seven_days_back.timestamp())
+        filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
         logger.info(f"checking updates for period1={period1} & period2={period2} for stocks per minute _________________")
         for stock in tqdm(symbol_list):
             stock = stock[1].replace(' ','')
@@ -537,7 +529,7 @@ class stocksManager:
                 link,
                 headers = self.headers
             )
-            path = f'{BASE_DIR}/scrapper/data/per_minute/{stock}/_{period1}_{period2}.json'
+            path = f'{BASE_DIR}/scrapper/data/per_minute/{stock}/_{period2}_{period1}.json'
             os.makedirs(os.path.dirname(path), exist_ok=True)
             if r.status_code == 200:
                 with open(path,'wb') as jsn:
@@ -545,8 +537,14 @@ class stocksManager:
             else:
                 logger.warning("request failed",link,r.status_code)
                 continue
-            
-        filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
+            jsonfile = pd.read_json(path)
+            jsondict = jsonfile.to_dict()
+            timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
+            name = f'{timestamp[0]}_{timestamp[-1]}.json'
+            with open(f'{filespaths}/{stock}/{name}', 'w') as json_file:
+                json.dump(jsondict, json_file, indent=4)
+            if os.path.exists(path):
+                os.remove(path)
         jsnlistdaily = os.listdir(filespaths)
         
         logger.info('working on collected per minute data _________________________________-')
@@ -560,106 +558,214 @@ class stocksManager:
                 continue
             jsondict = jsonf.to_dict()
             timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
-            if timestamp is not None:
-                new_timestamps = self.return_timestamp(timestamp)
-                jsondict['chart']['result'][0]['timestamp'] = new_timestamps
+            new_ts = self.return_human_timestamp(timestamp)
+            jsondict['chart']['result'][0]['timestamp'] = new_ts
             with open(f'{filespaths}/{folder}/{file}', 'w') as json_file:
                 json.dump(jsondict, json_file, indent=4)
+            
 
         logger.info("per minute update finished _________________________________")
-            
+    
+    '''
+    testing:
+    case 0 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-09-14%2008:00:00&end=2024-10-18%2023:59:59 
+    passed
+    case 1 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-09-14%2008:00:00&end=2024-09-18%2023:59:59 
+    passed
+    case 2 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2025-09-14%2008:00:00&end=2025-09-18%2023:59:59 
+    passed
+    case 3 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-14%2008:00:00&end=2024-10-20%2023:59:59 
+    passed
+    case 4 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-10%2008:00:00&end=2024-10-16%2023:59:59 
+    passed
+    case 5 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-14%2008:00:00&end=2024-10-18%2023:59:59
+    passed
+    '''        
     def render_per_minute_data(
         self, 
         stocksymbol, 
-        startdate, 
-        enddate
+        starttime, 
+        endtime
     ):
+        def is_within_7_days(timestamp1, timestamp2):
+            dt1 = datetime.fromtimestamp(timestamp1)
+            dt2 = datetime.fromtimestamp(timestamp2)
+            difference = abs(dt1 - dt2)
+            return difference < timedelta(days=7)
+        
+        def get_closer_index_if_stamp_is_missing(
+            unix_time,unix_timestamp
+        ):
+            if unix_time in unix_timestamp:
+                return unix_timestamp.index(unix_time), 'OK'
+
+            else:
+                for i in range(
+                    len(unix_timestamp) - 1):
+                    if unix_timestamp[i] <= unix_time or unix_time <= unix_timestamp[i + 1]:
+                        message = f"Allocated new date. New date is {unix_timestamp[i+1]} from closer case .  ."
+                        logger.warning(message)
+                        return i + 1, message
+
+        def collect_and_render_data(jsons,stocksymbol,startunix,endunix):
+            global_startindex = None 
+            global_endindex = None
+            for j in range(len(jsons)):
+                dt = jsons[j].split('.')[0]
+                d1 = int(dt.split('_')[0])
+                d2 = int(dt.split('_')[1])
+                if len(jsons) > 1:
+                    next_dt = jsons[j+1].split('.')[0]
+                    next_d1 = int(next_dt.split('_')[0])
+                    next_d2 = int(next_dt.split('_')[1])
+                '''case 1 : if both start and end are in same file'''
+                if d1 <= startunix <= d2 and d1 <= endunix <= d2:
+                    new_data = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
+                    timestmp = new_data.get('chart').get('result')[0].get('timestamp', [])
+                    unix_timestamp = self.return_unix_timestamps(timestmp)
+                    startindex,message1 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
+                    endindex,message2 = get_closer_index_if_stamp_is_missing(endunix,unix_timestamp)
+                    global_startindex = startindex
+                    global_endindex = endindex
+                    final_message = message1 + message2
+                    new_data = new_data.get('chart').get('result')[0].get('indicators').get('quote')[0]
+                    final = {
+                        'time': timestmp[global_startindex:global_endindex + 1],
+                        'close': new_data['close'][global_startindex:global_endindex + 1],
+                        'open': new_data['open'][global_startindex:global_endindex + 1],
+                        'high': new_data['high'][global_startindex:global_endindex + 1],
+                        'low': new_data['low'][global_startindex:global_endindex + 1],
+                        'volume': new_data['volume'][global_startindex:global_endindex + 1],
+                    }
+                    data = {
+                    'response': final_message,
+                    'data':final
+                    }
+                    return data
+                    
+                '''case 2 : if start and end in one after another file coz max gap 1 week . '''
+                if d1 <= startunix <= next_d2 and d1 <= endunix <= next_d2 :
+                    new_data1 = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
+                    new_data2 = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j+1]}')
+                    new_data = {}
+                    for key in new_data1:
+                        new_data[key] = new_data1[key] + new_data2[key]
+                    timestmp = new_data.get('chart').get('result')[0].get('timestamp', [])
+                    unix_timestamp = self.return_unix_timestamps(timestmp)
+                    startindex,message1 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
+                    endindex,message2 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
+                    global_startindex = startindex
+                    global_endindex = endindex
+                    final_message = message1 + message2
+                    final = {
+                        'time': timestmp[global_startindex:global_endindex + 1],
+                        'close': new_data['close'][global_startindex:global_endindex + 1],
+                        'open': new_data['open'][global_startindex:global_endindex + 1],
+                        'high': new_data['high'][global_startindex:global_endindex + 1],
+                        'low': new_data['low'][global_startindex:global_endindex + 1],
+                        'volume': new_data['volume'][global_startindex:global_endindex + 1],
+                    }
+                    return final  
+                '''else return none'''
+            else:
+                return None 
+        
+        startunix = self.return_unix_timestamps(f'{starttime}')
+        endunix = self.return_unix_timestamps(f'{endtime}')
+
+        if not is_within_7_days(startunix,endunix):
+            message = """
+                please provide start date and end date with only 7 days gaps . 
+                Due to latency issues we dont allow to render data larger then 7 days .
+                you can obtain data one by one .
+                for example ,
+                instad of 
+                2022-01-01 to 2022-01-14,
+                fire two requests like
+                2022-01-01 to 2022-01--07,
+                2022-01-07 to 2022-01-14,
+                """
+            message = message.replace('\n',' ')
+            return {
+                'message':message
+            }
+        
         path = f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/'
         jsons = os.listdir(path)
-        megajson = {}
-        for j in jsons:
-            data = pd.read_json(f'{path}/{j}').to_dict()
-            timestmp = data.get('chart').get('result')[0].get('timestamp', [])
-            dates =   [ str(t.split(' ')[0]) for t in timestmp ]
-            new_data = data.get('chart').get('result')[0].get('indicators').get('quote')[0]
 
-            startindex = None
-            endindex = None
-            final_message = ''
+        start_available_date = int(jsons[0].split('.')[0].split('_')[0])
+        last_available_date = int(jsons[-1].split('.')[0].split('_')[-1])
+        human_start_available_date = self.return_human_timestamp(str(start_available_date))
+        human_last_available_date = self.return_human_timestamp(str(last_available_date))
 
-            if startdate is None or enddate is None:
-                message = "Dates were not provided.\n"
-                thirty_days_ago = (
-                    datetime.now() - timedelta(
-                        days=30)
-                    ).strftime('%Y-%m-%d')
-                startdate = thirty_days_ago
-                enddate = dates[-1]
-                final_message = final_message+message
-
-            try:
-                if startdate in dates:
-                    startindex = dates.index(startdate)
-                else:
-                    message = "Start date not found. Locating later date in dates.   "
-                    logger.warning(message)
-                    final_message = final_message+message
-                    for i in range(3):
-                        next_date = (
-                            datetime.strptime(
-                                startdate, '%Y-%m-%d') + timedelta(
-                                    days=i + 1)
-                                ).strftime('%Y-%m-%d')
-                        if next_date in dates:
-                            message = f"Located new start date: {next_date}   "
-                            logger.info(message)
-                            final_message = final_message+message
-                            startdate = next_date
-                            startindex = dates.index(startdate)
-                            break
-                    if startindex is None:
-                        logger.debug("Start date not found within next 3 days range.")
-
-                if enddate in dates:
-                    endindex = dates.index(enddate)
-                else:
-                    message = "End date not found. Locating later date in dates.   "
-                    logger.warning(message)
-                    final_message = final_message+message
-                    for i in range(3):
-                        next_date = (
-                            datetime.strptime(
-                                enddate, '%Y-%m-%d') + timedelta(
-                                    days=i + 1)
-                                ).strftime('%Y-%m-%d')
-                        if next_date in dates:
-                            message = f"Located new end date: {next_date}   "
-                            logger.info(message)
-                            final_message = final_message+message
-                            enddate = next_date
-                            endindex = dates.index(enddate)
-                            break
-                    if endindex is None:
-                        logger.debug("End date not found within behind 3 days range.")
-
-            except ValueError as e:
-                logger.debug(f"Error: {e}")
-                
-            data = {
-                    'time': timestmp[startindex:endindex + 1],
-                    'close': new_data['close'][startindex:endindex + 1],
-                    'open': new_data['open'][startindex:endindex + 1],
-                    'high': new_data['high'][startindex:endindex + 1],
-                    'low': new_data['low'][startindex:endindex + 1],
-                    'volume': new_data['volume'][startindex:endindex + 1],
+        try:
+            '''case 1 : if user start date and end date is far behind then our available '''
+            if startunix < start_available_date and endunix < start_available_date:
+                logger.warning("hit case 1",startunix,start_available_date)
+                return {
+                    'message': f"""both {starttime} and {endtime} behind then recoreds available in our database . . 
+                    available data is between {human_start_available_date} and {human_last_available_date}
+                    for {stocksymbol} ."""   ,
+                    'data':None
                 }
-                
-            startforjson = timestmp[0]
-            endforjson = timestmp[-1]
-            megajson[f'_{startforjson}_{endforjson}'] = data
-                
-        response = {
-                    'response':final_message,
-                    'data':megajson
+            '''case 2 : if user start date end date is far ahead then our available '''
+            if endunix > last_available_date and startunix > last_available_date :
+                logger.warning("hit case 2")
+                return {
+                    'message': f"""both {starttime} and {endtime} are ahead then recoreds available in our database . . 
+                    available data is between {human_start_available_date} and {human_last_available_date}
+                    for {stocksymbol} ."""   ,
+                    'data':None
                 }
-        return response
+            '''case 3 : if user start data available but not end date '''
+            if start_available_date <= startunix <= last_available_date and endunix > last_available_date:
+                logger.warning("hit case 3")
+                return {
+                    'message': f""" {starttime} available in our database but not {endtime} . 
+                    providing you latest record upto {human_last_available_date}
+                    for {stocksymbol} ."""   ,
+                    'data':collect_and_render_data(
+                        jsons,
+                        stocksymbol,
+                        startunix,
+                        last_available_date
+                    )
+                } 
+            '''case 4 : if user end data available but not start data '''
+            if start_available_date <= endunix <= last_available_date and startunix < start_available_date:
+                logger.warning("hit case 4")
+                return {
+                    'message': f""" {endtime} available in our database but not {starttime} . 
+                    providing you record starting from {human_start_available_date}
+                    for {stocksymbol} ."""   ,
+                    'data':collect_and_render_data(
+                        jsons,
+                        stocksymbol,
+                        start_available_date,
+                        endunix
+                    )
+                } 
+            '''case 5 : if start and end date is within range'''
+            if start_available_date <= startunix and last_available_date <= endunix:
+                logger.warning("hit case 5")
+                data = collect_and_render_data(
+                        jsons,
+                        stocksymbol,
+                        startunix,
+                        endunix
+                    )
+                return {
+                    'message': "OK " ,
+                    'data':data
+                } 
+            else:
+                return {'error':'error in finding case'}
+        except:
+            return {'error':'error'}
+            
