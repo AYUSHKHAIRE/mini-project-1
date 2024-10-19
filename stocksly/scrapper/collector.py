@@ -515,9 +515,11 @@ class stocksManager:
         symbol_list,
     ):
         os.makedirs(f'{BASE_DIR}/scrapper/data/per_minute',exist_ok=True)
-        period1 = int(datetime.now().timestamp())
-        period2 = int((datetime.now() - timedelta(days=7)).timestamp())
-
+        todays_date = datetime.now().strftime('%Y-%m-%d 00:00:00')
+        date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
+        period1 = int(date_time_obj.timestamp())
+        seven_days_back = date_time_obj - timedelta(days=7)
+        period2 = int(seven_days_back.timestamp())
         filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
         logger.info(f"checking updates for period1={period1} & period2={period2} for stocks per minute _________________")
         for stock in tqdm(symbol_list):
@@ -566,7 +568,24 @@ class stocksManager:
     
     '''
     testing:
-    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-14#08:00:00?end=2024-10-18#23:59:55
+    case 0 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-09-14%2008:00:00&end=2024-10-18%2023:59:59 
+    passed
+    case 1 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-09-14%2008:00:00&end=2024-09-18%2023:59:59 
+    passed
+    case 2 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2025-09-14%2008:00:00&end=2025-09-18%2023:59:59 
+    passed
+    case 3 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-14%2008:00:00&end=2024-10-20%2023:59:59 
+    passed
+    case 4 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-10%2008:00:00&end=2024-10-16%2023:59:59 
+    passed
+    case 5 : 
+    http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-10-14%2008:00:00&end=2024-10-18%2023:59:59
+    passed
     '''        
     def render_per_minute_data(
         self, 
@@ -586,33 +605,36 @@ class stocksManager:
             if unix_time in unix_timestamp:
                 return unix_timestamp.index(unix_time), 'OK'
 
-            for i in range(
-                len(unix_timestamp) - 1):
-                if unix_timestamp[i] <= unix_time <= unix_timestamp[i + 1]:
-                    message = f"Allocated new date. New date is {unix_timestamp[i+1]} from closer case .  ."
-                    logger.warning(message)
-                    return i + 1, message
+            else:
+                for i in range(
+                    len(unix_timestamp) - 1):
+                    if unix_timestamp[i] <= unix_time or unix_time <= unix_timestamp[i + 1]:
+                        message = f"Allocated new date. New date is {unix_timestamp[i+1]} from closer case .  ."
+                        logger.warning(message)
+                        return i + 1, message
 
         def collect_and_render_data(jsons,stocksymbol,startunix,endunix):
             global_startindex = None 
             global_endindex = None
-            for j in range(len(jsons)-1):
+            for j in range(len(jsons)):
                 dt = jsons[j].split('.')[0]
-                d1 = int(dt.split('_')[1])
-                d2 = int(dt.split('_')[2])
-                next_dt = jsons[j+1].split('.')[0]
-                next_d1 = int(next_dt.split('_')[1])
-                next_d2 = int(next_dt.split('_')[2])
+                d1 = int(dt.split('_')[0])
+                d2 = int(dt.split('_')[1])
+                if len(jsons) > 1:
+                    next_dt = jsons[j+1].split('.')[0]
+                    next_d1 = int(next_dt.split('_')[0])
+                    next_d2 = int(next_dt.split('_')[1])
                 '''case 1 : if both start and end are in same file'''
                 if d1 <= startunix <= d2 and d1 <= endunix <= d2:
                     new_data = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
                     timestmp = new_data.get('chart').get('result')[0].get('timestamp', [])
                     unix_timestamp = self.return_unix_timestamps(timestmp)
                     startindex,message1 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
-                    endindex,message2 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
+                    endindex,message2 = get_closer_index_if_stamp_is_missing(endunix,unix_timestamp)
                     global_startindex = startindex
                     global_endindex = endindex
                     final_message = message1 + message2
+                    new_data = new_data.get('chart').get('result')[0].get('indicators').get('quote')[0]
                     final = {
                         'time': timestmp[global_startindex:global_endindex + 1],
                         'close': new_data['close'][global_startindex:global_endindex + 1],
@@ -649,20 +671,14 @@ class stocksManager:
                         'low': new_data['low'][global_startindex:global_endindex + 1],
                         'volume': new_data['volume'][global_startindex:global_endindex + 1],
                     }
-                    data = {
-                    'response': final_message,
-                    'data':final
-                    }
-                    return data  
+                    return final  
                 '''else return none'''
             else:
                 return None 
         
         startunix = self.return_unix_timestamps(f'{starttime}')
         endunix = self.return_unix_timestamps(f'{endtime}')
-        
-        logger.warning(f'{starttime},{endtime}')
-        
+
         if not is_within_7_days(startunix,endunix):
             message = """
                 please provide start date and end date with only 7 days gaps . 
@@ -683,17 +699,17 @@ class stocksManager:
         path = f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/'
         jsons = os.listdir(path)
 
-        start_available_date = int(jsons[0].split('.')[0].split('_')[1])
+        start_available_date = int(jsons[0].split('.')[0].split('_')[0])
         last_available_date = int(jsons[-1].split('.')[0].split('_')[-1])
         human_start_available_date = self.return_human_timestamp(str(start_available_date))
         human_last_available_date = self.return_human_timestamp(str(last_available_date))
 
         try:
             '''case 1 : if user start date and end date is far behind then our available '''
-            if startunix < start_available_date and endunix < last_available_date :
-                logger.warning("hit case 1")
+            if startunix < start_available_date and endunix < start_available_date:
+                logger.warning("hit case 1",startunix,start_available_date)
                 return {
-                    'message': f"""both {starttime} and {endtime} are behind then recoreds available in our database . . 
+                    'message': f"""both {starttime} and {endtime} behind then recoreds available in our database . . 
                     available data is between {human_start_available_date} and {human_last_available_date}
                     for {stocksymbol} ."""   ,
                     'data':None
@@ -722,7 +738,7 @@ class stocksManager:
                     )
                 } 
             '''case 4 : if user end data available but not start data '''
-            if start_available_date <= endunix <= last_available_date and startunix <= start_available_date:
+            if start_available_date <= endunix <= last_available_date and startunix < start_available_date:
                 logger.warning("hit case 4")
                 return {
                     'message': f""" {endtime} available in our database but not {starttime} . 
@@ -738,14 +754,15 @@ class stocksManager:
             '''case 5 : if start and end date is within range'''
             if start_available_date <= startunix and last_available_date <= endunix:
                 logger.warning("hit case 5")
-                return {
-                    'message': f"OK" ,
-                    'data':collect_and_render_data(
+                data = collect_and_render_data(
                         jsons,
                         stocksymbol,
                         startunix,
                         endunix
                     )
+                return {
+                    'message': "OK " ,
+                    'data':data
                 } 
             else:
                 return {'error':'error in finding case'}
