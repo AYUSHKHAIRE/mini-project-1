@@ -88,13 +88,18 @@ def get_stocks_per_minute_data(
     request, 
     stocksymbol   
 ):
-    startdate = request.GET.get('start', None)  
-    enddate = request.GET.get('end', None)  
+    starttime = request.GET.get('start', None)  
+    endtime = request.GET.get('end', None) 
+    logger.warning(f'{starttime},{endtime}')
+    starttime = starttime.replace('h',' ')
+    endtime = endtime.replace('h',' ')
+    logger.warning(f'{starttime},{endtime}')
     data = STM.render_per_minute_data(
         stocksymbol, 
-        startdate, 
-        enddate
+        starttime, 
+        endtime
     )
+    logger.warning(f'prnting data {data}')
     return JsonResponse(
         data, 
         safe=False
