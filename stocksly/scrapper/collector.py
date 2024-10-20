@@ -567,6 +567,21 @@ class stocksManager:
         logger.info("per minute update finished _________________________________")
     
     '''
+    input:
+    stocksymbol : symbol for the stock
+    starttime : users requested starting time 
+    endtine : user requested ending time
+    algorithm:
+    take inputs . check dates first at all .
+    if dates gap is greater then 7 days , return a message .
+    else , here are cases possible .
+    if all okay , and data is inside a week , then filter and render .
+    if end date is not valid but start valid , render upto available data .
+    if start date is not valid , but end date valid , render data from available date to the end .
+    if both out of range , then avoid rendering .
+    search date in dates list of the file, and determine index .
+    output:
+    an error or a json with message .
     testing:
     case 0 : 
     http://localhost:8000/stocks/get_stock_per_minute_data/NVDA/?start=2024-09-14%2008:00:00&end=2024-10-18%2023:59:59 
@@ -593,7 +608,10 @@ class stocksManager:
         starttime, 
         endtime
     ):
-        def is_within_7_days(timestamp1, timestamp2):
+        def is_within_7_days(
+            timestamp1, 
+            timestamp2
+        ):
             dt1 = datetime.fromtimestamp(timestamp1)
             dt2 = datetime.fromtimestamp(timestamp2)
             difference = abs(dt1 - dt2)
@@ -604,7 +622,6 @@ class stocksManager:
         ):
             if unix_time in unix_timestamp:
                 return unix_timestamp.index(unix_time), 'OK'
-
             else:
                 for i in range(
                     len(unix_timestamp) - 1):
@@ -613,10 +630,16 @@ class stocksManager:
                         logger.warning(message)
                         return i + 1, message
 
-        def collect_and_render_data(jsons,stocksymbol,startunix,endunix):
+        def collect_and_render_data(
+            jsons,
+            stocksymbol,
+            startunix,
+            endunix
+        ):
             global_startindex = None 
             global_endindex = None
-            for j in range(len(jsons)):
+            for j in range(
+                len(jsons)):
                 dt = jsons[j].split('.')[0]
                 d1 = int(dt.split('_')[0])
                 d2 = int(dt.split('_')[1])
@@ -626,11 +649,18 @@ class stocksManager:
                     next_d2 = int(next_dt.split('_')[1])
                 '''case 1 : if both start and end are in same file'''
                 if d1 <= startunix <= d2 and d1 <= endunix <= d2:
-                    new_data = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
+                    new_data = pd.read_json(
+                        f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
                     timestmp = new_data.get('chart').get('result')[0].get('timestamp', [])
                     unix_timestamp = self.return_unix_timestamps(timestmp)
-                    startindex,message1 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
-                    endindex,message2 = get_closer_index_if_stamp_is_missing(endunix,unix_timestamp)
+                    startindex,message1 = get_closer_index_if_stamp_is_missing(
+                        startunix,
+                        unix_timestamp
+                    )
+                    endindex,message2 = get_closer_index_if_stamp_is_missing(
+                        endunix,
+                        unix_timestamp
+                    )
                     global_startindex = startindex
                     global_endindex = endindex
                     final_message = message1 + message2
@@ -651,15 +681,23 @@ class stocksManager:
                     
                 '''case 2 : if start and end in one after another file coz max gap 1 week . '''
                 if d1 <= startunix <= next_d2 and d1 <= endunix <= next_d2 :
-                    new_data1 = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
-                    new_data2 = pd.read_json(f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j+1]}')
+                    new_data1 = pd.read_json(
+                        f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j]}')
+                    new_data2 = pd.read_json(
+                        f'{BASE_DIR}/scrapper/data/per_minute/{stocksymbol}/{jsons[j+1]}')
                     new_data = {}
                     for key in new_data1:
                         new_data[key] = new_data1[key] + new_data2[key]
                     timestmp = new_data.get('chart').get('result')[0].get('timestamp', [])
                     unix_timestamp = self.return_unix_timestamps(timestmp)
-                    startindex,message1 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
-                    endindex,message2 = get_closer_index_if_stamp_is_missing(startunix,unix_timestamp)
+                    startindex,message1 = get_closer_index_if_stamp_is_missing(
+                        startunix,
+                        unix_timestamp
+                    )
+                    endindex,message2 = get_closer_index_if_stamp_is_missing(
+                        startunix,
+                        unix_timestamp
+                    )
                     global_startindex = startindex
                     global_endindex = endindex
                     final_message = message1 + message2
@@ -679,19 +717,13 @@ class stocksManager:
         startunix = self.return_unix_timestamps(f'{starttime}')
         endunix = self.return_unix_timestamps(f'{endtime}')
 
-        if not is_within_7_days(startunix,endunix):
+        if not is_within_7_days(
+            startunix,
+            endunix
+        ):
             message = """
-                please provide start date and end date with only 7 days gaps . 
-                Due to latency issues we dont allow to render data larger then 7 days .
-                you can obtain data one by one .
-                for example ,
-                instad of 
-                2022-01-01 to 2022-01-14,
-                fire two requests like
-                2022-01-01 to 2022-01--07,
-                2022-01-07 to 2022-01-14,
+                please provide start date and end date with only 7 days gaps . Due to latency issues we dont allow to render data larger then 7 days .you can obtain data one by one .for example ,instad of 2022-01-01 to 2022-01-14,fire two requests like2022-01-01 to 2022-01--07,2022-01-07 to 2022-01-14,
                 """
-            message = message.replace('\n',' ')
             return {
                 'message':message
             }
@@ -701,35 +733,33 @@ class stocksManager:
 
         start_available_date = int(jsons[0].split('.')[0].split('_')[0])
         last_available_date = int(jsons[-1].split('.')[0].split('_')[-1])
-        human_start_available_date = self.return_human_timestamp(str(start_available_date))
-        human_last_available_date = self.return_human_timestamp(str(last_available_date))
+        human_start_available_date = self.return_human_timestamp(
+            str(start_available_date)
+        )
+        human_last_available_date = self.return_human_timestamp(
+            str(last_available_date)
+        )
 
         try:
             '''case 1 : if user start date and end date is far behind then our available '''
             if startunix < start_available_date and endunix < start_available_date:
                 logger.warning("hit case 1",startunix,start_available_date)
                 return {
-                    'message': f"""both {starttime} and {endtime} behind then recoreds available in our database . . 
-                    available data is between {human_start_available_date} and {human_last_available_date}
-                    for {stocksymbol} ."""   ,
+                    'message': f"""both {starttime} and {endtime} behind then recoreds available in our database . available data is between {human_start_available_date} and {human_last_available_date}for {stocksymbol} ."""   ,
                     'data':None
                 }
             '''case 2 : if user start date end date is far ahead then our available '''
             if endunix > last_available_date and startunix > last_available_date :
                 logger.warning("hit case 2")
                 return {
-                    'message': f"""both {starttime} and {endtime} are ahead then recoreds available in our database . . 
-                    available data is between {human_start_available_date} and {human_last_available_date}
-                    for {stocksymbol} ."""   ,
+                    'message': f"""both {starttime} and {endtime} are ahead then recoreds available in our database . . available data is between {human_start_available_date} and {human_last_available_date}for {stocksymbol} ."""   ,
                     'data':None
                 }
             '''case 3 : if user start data available but not end date '''
             if start_available_date <= startunix <= last_available_date and endunix > last_available_date:
                 logger.warning("hit case 3")
                 return {
-                    'message': f""" {starttime} available in our database but not {endtime} . 
-                    providing you latest record upto {human_last_available_date}
-                    for {stocksymbol} ."""   ,
+                    'message': f""" {starttime} available in our database but not {endtime} . providing you latest record upto {human_last_available_date}for {stocksymbol} ."""   ,
                     'data':collect_and_render_data(
                         jsons,
                         stocksymbol,
@@ -741,9 +771,7 @@ class stocksManager:
             if start_available_date <= endunix <= last_available_date and startunix < start_available_date:
                 logger.warning("hit case 4")
                 return {
-                    'message': f""" {endtime} available in our database but not {starttime} . 
-                    providing you record starting from {human_start_available_date}
-                    for {stocksymbol} ."""   ,
+                    'message': f""" {endtime} available in our database but not {starttime} . providing you record starting from {human_start_available_date}for {stocksymbol} ."""   ,
                     'data':collect_and_render_data(
                         jsons,
                         stocksymbol,
