@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render,redirect
 from django.http import JsonResponse
 from .collector import stocksManager
 from .models import setup_stocks_model
@@ -6,6 +6,9 @@ from datetime import datetime,timedelta
 from scrapper.logger_config import logger
 STM = stocksManager()
    
+def home_redirect(request):
+    return redirect('get_available_stocks/')
+
 '''
 input : nothing
 
@@ -49,7 +52,6 @@ it checks stock availablbity . if it is not updated , it updates it .
 output:
 a json response containing stock data .
 '''
-
 def get_available_stocks(request):
     available_stocks= STM.check_stock_availability()
     if STM.today_update_flag == 0:
@@ -72,32 +74,64 @@ def get_stocks_daily_data(
         request, 
         stocksymbol
     ):
-    startdate = request.GET.get('start', None)  
-    enddate = request.GET.get('end', None)  
-    data = STM.render_daily_data(
-        stocksymbol, 
-        startdate, 
-        enddate
-    )
-    return JsonResponse(
-        data, 
+    if stocksymbol is None:
+        return JsonResponse(
+        "please provide stock symbol",
         safe=False
     )
-    
+    else:
+        if STM.check_if_stock_is_available(stocksymbol) == True:
+            startdate = request.GET.get('start', None)  
+            enddate = request.GET.get('end', None)  
+            data = STM.render_daily_data(
+                stocksymbol, 
+                startdate, 
+                enddate
+            )
+            return JsonResponse(
+                data, 
+                safe=False
+            )   
+        else:
+            return JsonResponse(
+                f"{stocksymbol} is not available . ", 
+                safe=False
+            )
+
+def not_get_stockname(request):
+    return JsonResponse('please provide stock symbol' , safe= False)
+
 def get_stocks_per_minute_data(
     request, 
-    stocksymbol   
+    stocksymbol   ,
 ):
-    starttime = request.GET.get('start', None)  
-    endtime = request.GET.get('end', None) 
-    starttime = starttime.replace('%',' ')
-    endtime = endtime.replace('%',' ')
-    data = STM.render_per_minute_data(
-        stocksymbol, 
-        starttime, 
-        endtime
-    )
-    return JsonResponse(
-        data, 
+    if stocksymbol is None :
+        return JsonResponse(
+        "please provide stock symbol ",
         safe=False
     )
+    else:
+        if STM.check_if_stock_is_available(stocksymbol) == True:
+            starttime = request.GET.get('start', None)  
+            endtime = request.GET.get('end', None) 
+            if starttime is None or endtime is None:
+                return JsonResponse(
+                    'please provide starttime and endtime .'
+                    ,safe=False
+                )
+            starttime = starttime.replace('%',' ')
+            endtime = endtime.replace('%',' ')
+            data = STM.render_per_minute_data(
+                stocksymbol, 
+                starttime, 
+                endtime
+            )
+            return JsonResponse(
+                data, 
+                safe=False
+            )
+        else:
+            return JsonResponse(
+                f"{stocksymbol} is not available . ", 
+                safe=False
+            )

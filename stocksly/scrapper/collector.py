@@ -53,6 +53,16 @@ class stocksManager:
             stockslist.append(st.symbol)
         return {'stocks':stockslist}
     
+    def check_if_stock_is_available(self,stocksymbol):
+        stocks = StockInformation.objects.all()
+        stockslist = []
+        for st in stocks:
+            stockslist.append(st.symbol)
+        if stocksymbol in stockslist:
+            return True
+        else:
+            return False
+    
     '''
     input : none
     
