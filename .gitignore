@@ -2,3 +2,4 @@ virtualenv
 cmds.txt
 stocksly/db.sqlite3
 stocksly/scrapper/data/
+stocksly/celerybeat-schedule
