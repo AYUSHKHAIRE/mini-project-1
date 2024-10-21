@@ -29,3 +29,4 @@ app.conf.beat_schedule = {
 }
 
 app.conf.timezone = 'UTC'
+

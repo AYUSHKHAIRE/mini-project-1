@@ -4,10 +4,12 @@ from .collector import stocksManager
 from .models import setup_stocks_model
 from datetime import datetime,timedelta
 from scrapper.logger_config import logger
+from celery import shared_task
 STM = stocksManager()
    
 def home_redirect(request):
     return redirect('get_available_stocks/')
+
 
 '''
 input : nothing
@@ -19,6 +21,8 @@ it ensures the process of setup should held only once a day .
 
 output : nothing
 '''
+
+@shared_task
 def update_data_for_today():
     if STM.today_update_flag == 0:
         logger.info("starting update for today ___________________________________-")
@@ -54,8 +58,6 @@ a json response containing stock data .
 '''
 def get_available_stocks(request):
     available_stocks= STM.check_stock_availability()
-    if STM.today_update_flag == 0:
-        update_data_for_today()
     return JsonResponse(
         available_stocks,
         safe=False
