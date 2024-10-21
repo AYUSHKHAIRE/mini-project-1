@@ -208,6 +208,8 @@ class stocksManager:
         symbol_list
         ):
         current_timestamp = int(time.time())
+        current_time = datetime.fromtimestamp(current_timestamp)
+        human_readable_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
         date_str = "2015-01-01"
         date_obj = datetime.strptime(
             date_str, "%Y-%m-%d")
@@ -215,7 +217,7 @@ class stocksManager:
             date_obj.timetuple())
         )
         period2 = current_timestamp  
-        
+        logger.warning(f"daily data for todays date {human_readable_time}")
         logger.info(f"checking updates for period1={period1} & period2={period2} for stocks daily _________________")
         for stock in tqdm(symbol_list):
             stock_ = stock[1].replace(' ','')
@@ -526,6 +528,7 @@ class stocksManager:
     ):
         os.makedirs(f'{BASE_DIR}/scrapper/data/per_minute',exist_ok=True)
         todays_date = datetime.now().strftime('%Y-%m-%d 00:00:00')
+        logger.warning(f"per minute data for todays date {todays_date}")
         date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
         period1 = int(date_time_obj.timestamp())
         seven_days_back = date_time_obj - timedelta(days=7)
