@@ -278,7 +278,7 @@ class stocksManager:
     case 7
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2024-01-01&end=2023-10-01 passed
     case 8
-    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2unix timestamp022-01-01&end=2024-10-01 passed
+    http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=2022-01-01&end=2024-10-01 passed
     case 9
     http://localhost:8000/stocks/get_stock_daily_data/NVDA/?start=1922-01-01&end=2224-10-01 passed
         
@@ -638,7 +638,7 @@ class stocksManager:
             else:
                 for i in range(
                     len(unix_timestamp) - 1):
-                    if unix_timestamp[i] <= unix_time or unix_time <= unix_timestamp[i + 1]:
+                    if unix_timestamp[i] <= unix_time <= unix_timestamp[i + 1]:
                         message = f"Allocated new date. New date is {unix_timestamp[i+1]} from closer case .  ."
                         logger.warning(message)
                         return i + 1, message
@@ -677,6 +677,7 @@ class stocksManager:
                     global_startindex = startindex
                     global_endindex = endindex
                     final_message = message1 + message2
+                    logger.warning(f'{global_startindex},{global_endindex}')
                     new_data = new_data.get('chart').get('result')[0].get('indicators').get('quote')[0]
                     final = {
                         'time': timestmp[global_startindex:global_endindex + 1],
