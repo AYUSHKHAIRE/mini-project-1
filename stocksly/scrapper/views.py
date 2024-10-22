@@ -1,10 +1,13 @@
 from django.shortcuts import render,redirect
-from django.http import JsonResponse
+from django.http import JsonResponse , HttpResponse
 from .collector import stocksManager
 from .models import setup_stocks_model
 from datetime import datetime,timedelta
 from scrapper.logger_config import logger
 from celery import shared_task
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 STM = stocksManager()
    
 def home_redirect(request):
@@ -137,3 +140,139 @@ def get_stocks_per_minute_data(
                 f"{stocksymbol} is not available . ", 
                 safe=False
             )
+
+def get_stocks_daily_data_chart(request, stocksymbol):
+    if stocksymbol is None:
+        return HttpResponse("Please provide a stock symbol", status=400)
+
+    if STM.check_if_stock_is_available(stocksymbol):
+        startdate = request.GET.get('start', None)
+        enddate = request.GET.get('end', None)
+
+        data = STM.render_daily_data(stocksymbol, startdate, enddate)
+        data = data['data']
+        
+        time = data['time']
+        close = data['close']
+        open_ = data['open']
+        low = data['low']
+        high = data['high']
+        volume = data['volume']
+        
+        fig = make_subplots(
+            rows=2, cols=1, 
+            shared_xaxes=True, 
+            row_heights=[0.7, 0.3], 
+            vertical_spacing=0.03
+        )
+
+        fig.add_trace(
+            go.Candlestick(
+                x=time,
+                open=open_,
+                high=high,
+                low=low,
+                close=close,
+                name="Price"
+            ),
+            row=1, col=1
+        )
+
+        fig.add_trace(
+            go.Bar(
+                x=time, 
+                y=volume, 
+                name="Volume",
+                marker_color='blue',
+                opacity=0.6
+            ),
+            row=2, col=1
+        )
+
+        fig.update_layout(
+            template='plotly_dark',
+            title=f"Daily Stock Data for {stocksymbol}",
+            xaxis_title="Date",
+            yaxis_title="Price",
+            yaxis2_title="Volume",
+            showlegend=False,
+            xaxis_rangeslider_visible=False  
+        )
+
+        chart_data = fig.to_json()
+        return render(request, 'chart.html', {
+            'stocksymbol': stocksymbol,
+            'chart_data': chart_data
+        })
+    
+    else:
+        return HttpResponse(f"{stocksymbol} is not available.", status=404)
+
+
+def get_stocks_per_minute_data_chart(request, stocksymbol):
+    if stocksymbol is None:
+        return HttpResponse("Please provide a stock symbol", status=400)
+
+    if STM.check_if_stock_is_available(stocksymbol):
+        starttime = request.GET.get('start', None)
+        endtime = request.GET.get('end', None)
+
+        data = STM.render_per_minute_data(stocksymbol, starttime, endtime)
+
+        data = data['data'].get('data')
+
+        close = data.get('close')
+        open_ = data.get('open')
+        low = data.get('low')
+        high = data.get('high')
+        time = data.get('time')
+        volume = data.get('volume')
+        
+        fig = make_subplots(
+            rows=2, cols=1, 
+            shared_xaxes=True, 
+            row_heights=[0.7, 0.3], 
+            vertical_spacing=0.03
+        )
+
+        fig.add_trace(
+            go.Candlestick(
+                x=time,
+                open=open_,
+                high=high,
+                low=low,
+                close=close,
+                name="Price"
+            ),
+            row=1, col=1
+        )
+
+        fig.add_trace(
+            go.Bar(
+                x=time, 
+                y=volume, 
+                name="Volume",
+                marker_color='blue',
+                opacity=0.6
+            ),
+            row=2, col=1
+        )
+
+        fig.update_layout(
+            template='plotly_dark',
+            title=f"Daily Stock Data for {stocksymbol}",
+            xaxis_title="Date",
+            yaxis_title="Price",
+            yaxis2_title="Volume",
+            showlegend=False,
+            xaxis_rangeslider_visible=False  
+        )
+
+        chart_data = fig.to_json()
+        return render(request, 'chart.html', {
+            'stocksymbol': stocksymbol,
+            'chart_data': chart_data
+        })
+    
+    else:
+        return HttpResponse(f"{stocksymbol} is not available.", status=404)
