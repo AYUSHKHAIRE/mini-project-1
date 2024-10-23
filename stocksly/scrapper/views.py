@@ -103,9 +103,23 @@ def get_stocks_daily_data(
                 safe=False
             )
 
+'''
+if we does not get stock name 
+'''
 def not_get_stockname(request):
     return JsonResponse('please provide stock symbol' , safe= False)
 
+'''
+function for rendering per minute stock data .
+input: 
+a request
+and a stocksymbol .
+algorithm:
+calls an internal function 
+takes data and render it . 
+output:
+a JSON response containing stocks data .
+'''
 def get_stocks_per_minute_data(
     request, 
     stocksymbol   ,
@@ -141,7 +155,20 @@ def get_stocks_per_minute_data(
                 safe=False
             )
 
-def get_stocks_daily_data_chart(request, stocksymbol):
+'''
+function for rendering stock data chart .
+input:
+a request and a symbol 
+algorithm:
+it checks if first stpck is available or not .
+if it is available , then make a chart and render it .
+output:
+rendering html containing stock data.
+'''
+def get_stocks_daily_data_chart(
+    request, 
+    stocksymbol
+):
     if stocksymbol is None:
         return HttpResponse("Please provide a stock symbol", status=400)
 
@@ -200,16 +227,22 @@ def get_stocks_daily_data_chart(request, stocksymbol):
         )
 
         chart_data = fig.to_json()
-        return render(request, 'chart.html', {
+        return render(
+            request, 
+            'chart.html', {
             'stocksymbol': stocksymbol,
             'chart_data': chart_data
-        })
+            }
+        )
     
     else:
         return HttpResponse(f"{stocksymbol} is not available.", status=404)
 
 
-def get_stocks_per_minute_data_chart(request, stocksymbol):
+def get_stocks_per_minute_data_chart(
+    request, 
+    stocksymbol
+    ):
     if stocksymbol is None:
         return HttpResponse("Please provide a stock symbol", status=400)
 
@@ -217,7 +250,11 @@ def get_stocks_per_minute_data_chart(request, stocksymbol):
         starttime = request.GET.get('start', None)
         endtime = request.GET.get('end', None)
 
-        data = STM.render_per_minute_data(stocksymbol, starttime, endtime)
+        data = STM.render_per_minute_data(
+            stocksymbol, 
+            starttime, 
+            endtime
+        )
 
         data = data['data'].get('data')
 
@@ -269,7 +306,9 @@ def get_stocks_per_minute_data_chart(request, stocksymbol):
         )
 
         chart_data = fig.to_json()
-        return render(request, 'chart.html', {
+        return render(
+            request, 
+            'chart.html', {
             'stocksymbol': stocksymbol,
             'chart_data': chart_data
         })
