@@ -528,57 +528,63 @@ class stocksManager:
     ):
         os.makedirs(f'{BASE_DIR}/scrapper/data/per_minute',exist_ok=True)
         todays_date = datetime.now().strftime('%Y-%m-%d 00:00:00')
-        logger.warning(f"per minute data for todays date {todays_date}")
-        date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
-        period1 = int(date_time_obj.timestamp())
-        seven_days_back = date_time_obj - timedelta(days=7)
-        period2 = int(seven_days_back.timestamp())
-        filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
-        logger.info(f"checking updates for period1={period1} & period2={period2} for stocks per minute _________________")
-        for stock in tqdm(symbol_list):
-            stock = stock[1].replace(' ','')
-            link = f'https://query2.finance.yahoo.com/v8/finance/chart/{stock}?period1={period2}&period2={period1}&interval=1m&includePrePost=true&events=div%7Csplit%7Cearn&&lang=en-US&region=US'
-            r = rq.get(
-                link,
-                headers = self.headers
-            )
-            path = f'{BASE_DIR}/scrapper/data/per_minute/{stock}/_{period2}_{period1}.json'
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            if r.status_code == 200:
-                with open(path,'wb') as jsn:
-                    jsn.write(r.content)
-            else:
-                logger.warning("request failed",link,r.status_code)
-                continue
-            jsonfile = pd.read_json(path)
-            jsondict = jsonfile.to_dict()
-            timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
-            name = f'{timestamp[0]}_{timestamp[-1]}.json'
-            with open(f'{filespaths}/{stock}/{name}', 'w') as json_file:
-                json.dump(jsondict, json_file, indent=4)
-            if os.path.exists(path):
-                os.remove(path)
-        jsnlistdaily = os.listdir(filespaths)
-        
-        logger.info('working on collected per minute data _________________________________-')
-        for folder in tqdm(jsnlistdaily):
-            files = os.listdir(f'{filespaths}/{folder}')
-            file = files[-1]
-            try:
-                jsonf = pd.read_json(f'{filespaths}/{folder}/{file}')
-            except:
-                logger.warning("cannot read json :",f'{filespaths}/{folder}/{file}')
-                continue
-            jsondict = jsonf.to_dict()
-            timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
-            new_ts = self.return_human_timestamp(timestamp)
-            jsondict['chart']['result'][0]['timestamp'] = new_ts
-            with open(f'{filespaths}/{folder}/{file}', 'w') as json_file:
-                json.dump(jsondict, json_file, indent=4)
+        today = datetime.now() 
+        '''check if it is saturday .'''
+        logger.warning("checking for saturday updates .")
+        if today.weekday() == 5: 
+            logger.warning("it is saturday today .")
+            logger.warning(f"per minute data for todays date {todays_date}")
+            date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
+            period1 = int(date_time_obj.timestamp())
+            seven_days_back = date_time_obj - timedelta(days=7)
+            period2 = int(seven_days_back.timestamp())
+            filespaths = f'{BASE_DIR}/scrapper/data/per_minute/'
+            logger.info(f"checking updates for period1={period1} & period2={period2} for stocks per minute _________________")
+            for stock in tqdm(symbol_list):
+                stock = stock[1].replace(' ','')
+                link = f'https://query2.finance.yahoo.com/v8/finance/chart/{stock}?period1={period2}&period2={period1}&interval=1m&includePrePost=true&events=div%7Csplit%7Cearn&&lang=en-US&region=US'
+                r = rq.get(
+                    link,
+                    headers = self.headers
+                )
+                path = f'{BASE_DIR}/scrapper/data/per_minute/{stock}/_{period2}_{period1}.json'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                if r.status_code == 200:
+                    with open(path,'wb') as jsn:
+                        jsn.write(r.content)
+                else:
+                    logger.warning("request failed",link,r.status_code)
+                    continue
+                jsonfile = pd.read_json(path)
+                jsondict = jsonfile.to_dict()
+                timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
+                name = f'{timestamp[0]}_{timestamp[-1]}.json'
+                with open(f'{filespaths}/{stock}/{name}', 'w') as json_file:
+                    json.dump(jsondict, json_file, indent=4)
+                if os.path.exists(path):
+                    os.remove(path)
+            jsnlistdaily = os.listdir(filespaths)
             
-
+            logger.info('working on collected per minute data _________________________________-')
+            for folder in tqdm(jsnlistdaily):
+                files = os.listdir(f'{filespaths}/{folder}')
+                file = files[-1]
+                try:
+                    jsonf = pd.read_json(f'{filespaths}/{folder}/{file}')
+                except:
+                    logger.warning("cannot read json :",f'{filespaths}/{folder}/{file}')
+                    continue
+                jsondict = jsonf.to_dict()
+                timestamp = jsondict.get('chart').get('result')[0].get('timestamp')
+                new_ts = self.return_human_timestamp(timestamp)
+                jsondict['chart']['result'][0]['timestamp'] = new_ts
+                with open(f'{filespaths}/{folder}/{file}', 'w') as json_file:
+                    json.dump(jsondict, json_file, indent=4)
+                
+        else:
+            logger.warning("it is not saturday today . skipping the step ...")
         logger.info("per minute update finished _________________________________")
-    
+        
     '''
     input:
     stocksymbol : symbol for the stock
