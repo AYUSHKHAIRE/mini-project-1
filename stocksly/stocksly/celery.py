@@ -24,9 +24,11 @@ def debug_task(self):
 app.conf.beat_schedule = {
     'daily-update-task': {
         'task': 'scrapper.views.update_data_for_today',  # Path to task in scrapper app
-        'schedule': crontab(hour=8, minute=00),   # Runs daily at 07:20 UTC
+        'schedule': crontab(hour=14, minute=5),   # Runs daily at 07:35 UTC
     },
 }
 
 app.conf.timezone = 'UTC'
+
+# add 5 hours and 30 minutes to IST 12 timestamp .
 

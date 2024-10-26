@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+
 from pathlib import Path
 import os
 
@@ -28,7 +29,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
-    'localhost'
+    'localhost',
+    '.vercel.app'
 ]
 
 
@@ -88,6 +90,13 @@ DATABASES = {
     }
 }
 
+# postgresql://stocksly_user:bfpCrtBXJAobhgR8ZhHVjSLzJw6jajYb@dpg-cse7v8dsvqrc73etuurg-a.singapore-postgres.render.com/stocksly
+
+"""intigrate database"""
+
+import dj_database_url
+
+DATABASES['default'] = dj_database_url.parse("postgresql://stocksly_user:bfpCrtBXJAobhgR8ZhHVjSLzJw6jajYb@dpg-cse7v8dsvqrc73etuurg-a.singapore-postgres.render.com/stocksly")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
