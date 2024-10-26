@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     
     'core',
     'scrapper',
+    'background_task'
 ]
 
 MIDDLEWARE = [
