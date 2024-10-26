@@ -1,7 +1,6 @@
 import requests as rq
 import pandas as pd
 from bs4 import BeautifulSoup
-from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 from datetime import datetime
 from stocksly.settings import BASE_DIR
 import time 
@@ -11,7 +10,8 @@ from datetime import datetime,timedelta
 import json
 from scrapper.logger_config import logger
 import shutil
-
+from background_task import background
+from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 '''
 A class handles all stocks related operations .
 '''
