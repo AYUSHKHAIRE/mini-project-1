@@ -4,9 +4,9 @@ from .collector import stocksManager
 from .models import setup_stocks_model
 from datetime import datetime,timedelta
 from scrapper.logger_config import logger
-from celery import shared_task
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from background_task import background
 
 STM = stocksManager()
    
@@ -24,9 +24,9 @@ it ensures the process of setup should held only once a day .
 
 output : nothing
 '''
-
-@shared_task
+@background(schedule=0)
 def update_data_for_today():
+    print("task was schduled !")
     if STM.today_update_flag == 0:
         logger.info("starting update for today ___________________________________-")
         symbols = STM.collect_stock_symbols()
