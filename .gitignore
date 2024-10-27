@@ -2,4 +2,5 @@ mpenv
 cmds.txt
 stocksly/db.sqlite3
 stocksly/scrapper/data/
-stocksly/celerybeat-schedule
+stocksly/scrapper/__pycache__
+stocksly/stocksly/__pycache__
