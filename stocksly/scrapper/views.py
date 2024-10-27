@@ -6,7 +6,6 @@ from datetime import datetime,timedelta
 from scrapper.logger_config import logger
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from background_task import background
 
 STM = stocksManager()
    
@@ -24,7 +23,6 @@ it ensures the process of setup should held only once a day .
 
 output : nothing
 '''
-@background(schedule=0)
 def update_data_for_today():
     print("task was schduled !")
     if STM.today_update_flag == 0:
