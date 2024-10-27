@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-
 from pathlib import Path
 import os
 
@@ -29,8 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
-    'localhost',
-    '.vercel.app'
+    'localhost'
 ]
 
 
@@ -46,7 +44,7 @@ INSTALLED_APPS = [
     
     'core',
     'scrapper',
-    'django_celery_beat',
+    'background_task'
 ]
 
 MIDDLEWARE = [
@@ -90,13 +88,6 @@ DATABASES = {
     }
 }
 
-# postgresql://stocksly_user:bfpCrtBXJAobhgR8ZhHVjSLzJw6jajYb@dpg-cse7v8dsvqrc73etuurg-a.singapore-postgres.render.com/stocksly
-
-"""intigrate database"""
-
-import dj_database_url
-
-DATABASES['default'] = dj_database_url.parse("postgresql://stocksly_user:bfpCrtBXJAobhgR8ZhHVjSLzJw6jajYb@dpg-cse7v8dsvqrc73etuurg-a.singapore-postgres.render.com/stocksly")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -139,10 +130,3 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# celery
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'  # Adjust according to your timezone

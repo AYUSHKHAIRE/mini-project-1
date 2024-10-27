@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 
-
-class ScrapperConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
+class MyAppConfig(AppConfig):
     name = 'scrapper'
+
+    def ready(self):
+        from .schedular import start_scheduler
+        start_scheduler()

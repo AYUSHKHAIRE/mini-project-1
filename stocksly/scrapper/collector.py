@@ -1,7 +1,6 @@
 import requests as rq
 import pandas as pd
 from bs4 import BeautifulSoup
-from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 from datetime import datetime
 from stocksly.settings import BASE_DIR
 import time 
@@ -11,7 +10,7 @@ from datetime import datetime,timedelta
 import json
 from scrapper.logger_config import logger
 import shutil
-
+from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 '''
 A class handles all stocks related operations .
 '''
@@ -531,8 +530,8 @@ class stocksManager:
         today = datetime.now() 
         '''check if it is saturday .'''
         logger.warning("checking for saturday updates .")
-        if today.weekday() == 5: 
-            logger.warning("it is saturday today .")
+        if today.weekday() == 6: 
+            logger.warning("it is sunday today .")
             logger.warning(f"per minute data for todays date {todays_date}")
             date_time_obj = datetime.strptime(todays_date, '%Y-%m-%d %H:%M:%S')
             period1 = int(date_time_obj.timestamp())
@@ -582,7 +581,7 @@ class stocksManager:
                     json.dump(jsondict, json_file, indent=4)
                 
         else:
-            logger.warning("it is not saturday today . skipping the step ...")
+            logger.warning("it is not sunday today . skipping the step ...")
         logger.info("per minute update finished _________________________________")
         
     '''
