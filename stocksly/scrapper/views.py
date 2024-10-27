@@ -25,7 +25,7 @@ output : nothing
 '''
 def update_data_for_today():
     print("task was schduled !")
-    if STM.today_update_flag == 0:
+    if STM.firstrun == 0:
         logger.info("starting update for today ___________________________________-")
         symbols = STM.collect_stock_symbols()
         stocks_list_for_setup = []
@@ -44,7 +44,7 @@ def update_data_for_today():
         STM.update_prices_for_daily(stocks_list_for_setup[:10])
         STM.update_prices_for_per_minute(stocks_list_for_setup[:10])
     
-        STM.today_update_flag = 1
+        STM.firstrun = 1
         logger.info("finishing update for today ___________________________________-")
 
 '''
