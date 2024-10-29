@@ -9,6 +9,13 @@ import os
 from datetime import datetime,timedelta
 from scrapper.logger_config import logger
 from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
+from .mongodb_manager import AtlasClient
+import shutil
+
+AC = AtlasClient(
+    atlas_uri="mongodb+srv://ayushkhaire:ayushkhaire@ayushkhaire.fznbh.mongodb.net/?retryWrites=true&w=majority&appName=ayushkhaire",
+    dbname = "stocks"
+)
 '''
 A class handles all stocks related operations .
 '''
@@ -217,6 +224,10 @@ class stocksManager:
         # Define base path for daily updates
         files_path = f'{BASE_DIR}/scrapper/data/daily_update/'
 
+        AC.delete(
+            "daily_data",
+            _del_all_ = True
+        )
         for stock in tqdm(symbol_list):
             stock_symbol = stock[1].replace(' ', '')
             json_path = f'{files_path}/{stock_symbol}.json'
@@ -231,31 +242,25 @@ class stocksManager:
             if response.status_code == 200:
                 with open(json_path, 'wb') as file:
                     file.write(response.content)
+                json_data = pd.read_json(json_path)
+                timestamp = json_data['chart']['result'][0].get('timestamp')
+                if timestamp:
+                    new_timestamps = self.return_human_timestamp(timestamp)
+                    new_data = json_data['chart']['result'][0]['indicators']['quote'][0]
+                    new_data['timestamp'] = new_timestamps
+                    data_to_insert = {f'{stock_symbol}':new_data}
+                    try:
+                        AC.insert(
+                            collection_name="daily_data",
+                            documents=data_to_insert
+                        )
+                    except:
+                        logger.warning(f'daily data insertion for {stock_symbol} failed .')
             else:
                 logger.warning(f"Request failed: {url}, Status code: {response.status_code}")
                 continue
 
-        logger.info("Processing collected daily data")
-
-        # Iterate through downloaded files to add human-readable timestamps
-        for file_name in tqdm(os.listdir(files_path)):
-            file_path = os.path.join(files_path, file_name)
-            try:
-                json_data = pd.read_json(file_path)
-                timestamp = json_data['chart']['result'][0].get('timestamp')
-                
-                # Convert timestamps to human-readable format if present
-                if timestamp:
-                    new_timestamps = self.return_human_timestamp(timestamp)
-                    json_data['chart']['result'][0]['timestamp'] = new_timestamps
-                
-                # Save the updated JSON data back to the file
-                json_data.to_json(file_path, orient='records', indent=4)
-            
-            except ValueError as e:
-                logger.warning(f"Cannot read JSON: {file_name}. Error: {e}")
-                continue
-
+        shutil.rmtree(files_path)
         logger.info("Daily data update finished.")
   
     '''
@@ -534,10 +539,10 @@ class stocksManager:
         todays_date = datetime.now().strftime('%Y-%m-%d 00:00:00')
         today = datetime.now() 
 
-        '''Check if it is Sunday (weekday=6).'''
+        '''Check if it is Sunday (weekday=6) or first time run .'''
         logger.warning("Checking for Sunday updates.")
-        if today.weekday() == 6: 
-            logger.warning("It is Sunday today.")
+        if today.weekday() == 6 or self.firstrun == 0:   
+            logger.warning("It is Sunday today or it is our first run .")
             logger.warning(f"Per minute data for today's date {todays_date}")
             
             # Calculate periods for data retrieval
@@ -549,54 +554,42 @@ class stocksManager:
             
             logger.info(f"Checking updates for period1={period1} & period2={period2} for stocks per minute.")
             
+            AC.delete(
+                collection_name="per_minute_data",
+                _del_all_ = True
+            )
             for stock in tqdm(symbol_list):
                 stock_symbol = stock[1].replace(' ', '')
                 link = f'https://query2.finance.yahoo.com/v8/finance/chart/{stock_symbol}?period1={period2}&period2={period1}&interval=1m&includePrePost=true&events=div%7Csplit%7Cearn&&lang=en-US&region=US'
                 response = rq.get(link, headers=self.headers)
                 
-                # Define file path and save response content if successful
                 tmppath = f'{filespaths}/{stock_symbol}/_{period2}_{period1}.json'
                 os.makedirs(os.path.dirname(tmppath), exist_ok=True)
                 if response.status_code == 200:
                     with open(tmppath, 'wb') as jsn:
                         jsn.write(response.content)
-                else:
-                    logger.warning(f"Request failed: {link}, Status code: {response.status_code}")
-                    continue
+                    json_data  = pd.read_json(tmppath)
+                    timestamp = json_data['chart'][0][0]['timestamp']
+                    json_data = json_data['chart'][0][0]["indicators"]["quote"][0]
+                    if timestamp:
+                        new_timestamps = self.return_human_timestamp(timestamp)
+                        json_data['timestamp'] = new_timestamps
+                        data_to_insert = {f'{stock_symbol}':json_data}
+                        try:
+                            AC.insert(
+                                collection_name="per_minute_data",
+                                documents=data_to_insert
+                            )
+                            shutil.rmtree(f'{filespaths}/{stock_symbol}/')
+                        except:
+                            logger.warning(f'per minute data insertion data insertion for {stock_symbol} failed .')
                 
-                # Read JSON file and save it in a more readable format
-                try:
-                    jsonfile = pd.read_json(tmppath)
-                    timestamp = jsonfile['chart']['result'][0]['timestamp']
-                    name = f'_{timestamp[0]}_{timestamp[-1]}.json'
-                    jsonfile.to_json(f'{filespaths}/{stock_symbol}/{name}', orient='records', indent=4)
-                    os.remove(tmppath)
-                except Exception as e:
-                    logger.warning(f"Failed to process JSON file: {path}. Error: {e}")
-            
-            # Process collected data files
-            logger.info("Processing collected per minute data.")
-            for folder in tqdm(os.listdir(filespaths)):
-                folder_path = os.path.join(filespaths, folder)
-                files = sorted(os.listdir(folder_path))
-                if not files:
-                    continue
+                    else:
+                        logger.warning(f"Request failed: {link}, Status code: {response.status_code}")
+                        continue
                 
-                file_path = os.path.join(folder_path, files[-1])
-                try:
-                    jsonf = pd.read_json(file_path)
-                    timestamp = jsonf['chart'][0][0]['timestamp']
-                    new_ts = self.return_human_timestamp(timestamp)
-                    jsonf['chart'][0][0]['timestamp'] = new_ts
-                    
-                    # Save the modified JSON data directly
-                    jsonf.to_json(file_path, orient='records', indent=4)
-                except Exception as e:
-                    logger.warning(f"Cannot read JSON: {file_path}. Error: {e}")
-
         else:
             logger.warning("It is not Sunday today. Skipping the update step.")
-        
         logger.info("Per minute update finished.")
     
     '''
