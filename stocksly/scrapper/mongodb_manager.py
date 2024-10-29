@@ -18,6 +18,12 @@ class AtlasClient:
         collection = self.database[collection_name]
         return collection
 
+    def findOneByKey(self,collection_name,key):
+        collection = self.get_collection(collection_name)
+        result = collection.find_one({ key: { "$exists": True } })
+        return result
+
+
     def find(self, collection_name, filter={}, limit=0):
         collection = self.database[collection_name]
         items = list(collection.find(filter=filter, limit=limit))
@@ -38,11 +44,9 @@ class AtlasClient:
         
         if isinstance(documents, list):
             result = collection.insert_many(documents)
-            print(f"Inserted {len(result.inserted_ids)} documents.")
             return result.inserted_ids
         else:
             result = collection.insert_one(documents)
-            print(f"Inserted one document with ID: {result.inserted_id}")
             return result.inserted_id
         
     def delete(self, collection_name, filter={}, _del_all_=False):
@@ -62,13 +66,12 @@ class AtlasClient:
         
         if _del_all_:
             result = collection.delete_many(filter)
-            print(f"Deleted {result.deleted_count} documents.")
             return result.deleted_count
         else:
             result = collection.delete_one(filter)
             if result.deleted_count == 1:
-                print("Deleted one document.")
+                pass
             else:
-                print("No document found to delete.")
+                pass
             return result.deleted_count
     
