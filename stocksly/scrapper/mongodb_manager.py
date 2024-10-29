@@ -1,5 +1,6 @@
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from .logger_config import logger
 
 class AtlasClient:
     def __init__(self, atlas_uri, dbname):
@@ -9,9 +10,9 @@ class AtlasClient:
     def ping(self):
         try:
             self.mongodb_client.admin.command('ping')
-            print("Pinged your MongoDB deployment. Connection successful.")
+            logger.info("Pinged your MongoDB deployment. Connection successful.")
         except Exception as e:
-            print(f"Failed to connect to MongoDB: {e}")
+            logger.error(f"Failed to connect to MongoDB: {e}")
 
     def get_collection(self, collection_name):
         collection = self.database[collection_name]
