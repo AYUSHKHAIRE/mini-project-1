@@ -8,14 +8,20 @@ from tqdm import tqdm
 import os
 from datetime import datetime,timedelta
 from scrapper.logger_config import logger
-from scrapper.models import StockInformation , StocksCategory ,PerMinuteTrade,DayTrade
 from .mongodb_manager import AtlasClient
-import shutil
+from stocksly.settings import MONGODB_APPNAME,MONGODB_CLUSTER_NAME,MONGODB_DATABASE_NAME,MONGODB_PASSWORD,MONGODB_USERNAME
+
+mongodb_username = MONGODB_USERNAME
+mongodb_password = MONGODB_PASSWORD
+mongodb_cluster_name = MONGODB_CLUSTER_NAME
+mongodb_app_name = MONGODB_APPNAME
+mngodb_database_name = MONGODB_DATABASE_NAME
 
 AC = AtlasClient(
-    atlas_uri="mongodb+srv://ayushkhaire:ayushkhaire@ayushkhaire.fznbh.mongodb.net/?retryWrites=true&w=majority&appName=ayushkhaire",
-    dbname = "stocks"
+    atlas_uri=f"mongodb+srv://{mongodb_username}:{mongodb_password}@{mongodb_cluster_name}.fznbh.mongodb.net/?retryWrites=true&w=majority&appName={mongodb_app_name}",
+    dbname = mngodb_database_name
 )
+
 '''
 A class handles all stocks related operations .
 '''
@@ -51,18 +57,18 @@ class stocksManager:
     a json response of stocks data .
     '''
     def check_stock_availability(self):
-        stocks = StockInformation.objects.all()
+        return {'stocks':self.available_stocks}
+    
+    def update_stocks_list_for_today(self):
+        stocks = AC.find("daily_data")
         stockslist = []
         for st in stocks:
-            stockslist.append(st.symbol)
-        return {'stocks':stockslist}
+            stockslist.append(list(st.keys())[1])
+        self.available_stocks = stockslist
+        logger.warning("stocks list updated !")
     
     def check_if_stock_is_available(self,stocksymbol):
-        stocks = StockInformation.objects.all()
-        stockslist = []
-        for st in stocks:
-            stockslist.append(st.symbol)
-        if stocksymbol in stockslist:
+        if stocksymbol in self.available_stocks:
             return True
         else:
             return False
@@ -241,6 +247,7 @@ class stocksManager:
                 if response.status_code == 200:
                     with open(json_path, 'wb') as file:
                         file.write(response.content)
+                        del response
                     json_data = pd.read_json(json_path)
                     timestamp = json_data['chart']['result'][0].get('timestamp')
                     if timestamp:
@@ -253,8 +260,9 @@ class stocksManager:
                                 collection_name="daily_data",
                                 documents=data_to_insert
                             )
-                        except:
-                            logger.warning(f'daily data insertion for {stock_symbol} failed .')
+                            del json_data
+                        except Exception as e:
+                            logger.error(f'daily data insertion for {stock_symbol} failed .',e)
                 else:
                     logger.warning(f"Request failed: {url}, Status code: {response.status_code}")
                     continue
@@ -570,6 +578,7 @@ class stocksManager:
                 if response.status_code == 200:
                     with open(tmppath, 'wb') as jsn:
                         jsn.write(response.content)
+                        del response
                     json_data  = pd.read_json(tmppath)
                     timestamp = json_data['chart'][0][0]['timestamp']
                     json_data = json_data['chart'][0][0]["indicators"]["quote"][0]
@@ -582,9 +591,10 @@ class stocksManager:
                                 collection_name="per_minute_data",
                                 documents=data_to_insert
                             )
-                            shutil.rmtree(f'{filespaths}/{stock_symbol}/')
-                        except:
-                            logger.warning(f'per minute data insertion data insertion for {stock_symbol} failed .')
+                            del json_data
+                            os.remove(tmppath)
+                        except Exception as e:
+                            logger.warning(f'per minute data insertion data insertion for {stock_symbol} failed .'),e
                 
                     else:
                         logger.warning(f"Request failed: {link}, Status code: {response.status_code}")
