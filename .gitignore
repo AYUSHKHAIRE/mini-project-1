@@ -5,3 +5,4 @@ stocksly/scrapper/data/
 stocksly/scrapper/__pycache__
 stocksly/stocksly/__pycache__
 stocksly/.env
+triggeractiver/streamenv
